@@ -1,0 +1,14 @@
+# Include node_modules since remote build isn't available
+# (node_modules will be uploaded)
+
+# Ignore source files - only need compiled dist
+*.ts
+!*.d.ts
+
+# Ignore dev files
+.git/
+.vscode/
+*.md
+.gitignore
+tsconfig.json
+local.settings.json

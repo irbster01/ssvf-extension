@@ -1,0 +1,24 @@
+{
+  "name": "ssvf-capture-api",
+  "version": "2.0.0",
+  "description": "Azure Function to capture SSVF service submissions to Cosmos DB",
+  "main": "dist/src/functions.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "start": "func start",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.0.0",
+    "@azure/functions": "^4.3.0",
+    "jsonwebtoken": "^9.0.0",
+    "jwks-rsa": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.6",
+    "azure-functions-core-tools": "^4.0.5455",
+    "typescript": "^5.9.3"
+  }
+}

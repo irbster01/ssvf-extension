@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Service Submission Page</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #555;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    button {
+      background: #4caf50;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .info-box p {
+      margin: 0;
+      color: #1565c0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Test Service Submission Form</h1>
+    
+    <div class="info-box">
+      <p><strong>Instructions:</strong> This page simulates a service submission form. When you submit this form, the Chrome extension should capture the page content and send it to the Azure Function backend.</p>
+    </div>
+
+    <form id="serviceForm" action="#" method="post">
+      <div class="form-group">
+        <label for="clientName">Client Name</label>
+        <input type="text" id="clientName" name="clientName" value="John Doe" required>
+      </div>
+
+      <div class="form-group">
+        <label for="serviceType">Service Type</label>
+        <select id="serviceType" name="serviceType" required>
+          <option value="">Select a service...</option>
+          <option value="housing" selected>Housing Assistance</option>
+          <option value="food">Food Bank</option>
+          <option value="medical">Medical Support</option>
+          <option value="counseling">Counseling</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="serviceDate">Service Date</label>
+        <input type="date" id="serviceDate" name="serviceDate" value="2025-12-02" required>
+      </div>
+
+      <div class="form-group">
+        <label for="notes">Service Notes</label>
+        <textarea id="notes" name="notes" required>Client received housing assistance counseling. Discussed available resources and next steps. Follow-up scheduled for next week.</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="staffName">Staff Name</label>
+        <input type="text" id="staffName" name="staffName" value="Jane Smith" required>
+      </div>
+
+      <button type="submit">Submit Service Record</button>
+    </form>
+
+    <div id="formStatus" style="margin-top: 20px;"></div>
+  </div>
+
+  <script>
+    // Simulate form submission handling
+    document.getElementById('serviceForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const statusDiv = document.getElementById('formStatus');
+      statusDiv.innerHTML = `
+        <div style="background: #c8e6c9; border: 1px solid #4caf50; padding: 15px; border-radius: 4px;">
+          <strong>✓ Form submitted successfully!</strong><br>
+          <small>Check your browser console and Azure Function logs to verify the data was captured.</small>
+        </div>
+      `;
+      
+      console.log('Form submitted at:', new Date().toISOString());
+      
+      // Reset status after 5 seconds
+      setTimeout(() => {
+        statusDiv.innerHTML = '';
+      }, 5000);
+    });
+  </script>
+</body>
+</html>
