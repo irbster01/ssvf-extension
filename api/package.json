@@ -12,6 +12,7 @@
   "dependencies": {
     "@azure/cosmos": "^4.0.0",
     "@azure/functions": "^4.3.0",
+    "@azure/storage-blob": "^12.31.0",
     "jsonwebtoken": "^9.0.0",
     "jwks-rsa": "^3.1.0"
   },

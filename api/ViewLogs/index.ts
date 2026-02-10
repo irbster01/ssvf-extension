@@ -1,5 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryCaptures, ServiceCapture } from '../shared/cosmosClient';
+import { checkRateLimit } from '../AuthToken';
+import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 
 export async function ViewLogs(
   request: HttpRequest,
@@ -7,11 +9,18 @@ export async function ViewLogs(
 ): Promise<HttpResponseInit> {
   context.log('ViewLogs function processed a request.');
 
-  // CORS headers
+  // CORS headers - RESTRICTED to specific origins only
+  const origin = request.headers.get('origin') || '';
+  const allowedOrigins = [
+    'https://ssvf-capture-api.azurewebsites.net',  // Azure Functions host
+    'https://wscs.wellsky.com',
+  ];
+  
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
   };
 
   // Handle preflight OPTIONS request
@@ -19,6 +28,56 @@ export async function ViewLogs(
     return {
       status: 204,
       headers: corsHeaders,
+    };
+  }
+
+  // Validate token-based authentication
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    context.warn('❌ ViewLogs: Missing or invalid authorization header');
+    return {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+      body: generateErrorHtml('Unauthorized', 'Please provide a valid authorization token.'),
+    };
+  }
+
+  const token = authHeader.substring(7);
+  let userId: string | undefined;
+  let userEmail: string | undefined;
+
+  // Validate Entra ID token
+  if (isJwtToken(token)) {
+    const entraValidation = await validateEntraIdToken(token);
+    if (!entraValidation.valid || !entraValidation.userId) {
+      context.warn('❌ ViewLogs: Invalid or expired Entra ID token');
+      return {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+        body: generateErrorHtml('Unauthorized', 'Invalid or expired token.'),
+      };
+    }
+    userId = entraValidation.email || entraValidation.userId;
+    userEmail = entraValidation.email;
+    context.log(`✅ ViewLogs authenticated: ${userEmail || userId}`);
+  } else {
+    // Reject non-JWT tokens for logs endpoint (more restrictive)
+    context.warn('❌ ViewLogs: Non-JWT token rejected');
+    return {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+      body: generateErrorHtml('Unauthorized', 'JWT token required.'),
+    };
+  }
+
+  // Rate limiting check (stricter for logs - 5 requests per minute)
+  const rateLimitCheck = checkRateLimit(userId);
+  if (!rateLimitCheck.allowed) {
+    context.warn(`❌ Rate limit exceeded for user: ${userId}`);
+    return {
+      status: 429,
+      headers: { ...corsHeaders, 'Content-Type': 'text/html', 'Retry-After': '60' },
+      body: generateErrorHtml('Too Many Requests', 'Please wait before trying again.'),
     };
   }
 
@@ -107,9 +166,10 @@ export async function ViewLogs(
         <span class="log-time">${log.captured_at_utc || 'N/A'}</span>
       </div>
       <div class="field-grid">
+        ${log.client_id ? `<div class="field"><div class="field-name">Client ID</div><div class="field-value">${log.client_id}</div></div>` : ''}
+        ${log.client_name ? `<div class="field"><div class="field-name">Client Name</div><div class="field-value">${log.client_name}</div></div>` : ''}
         ${log.vendor ? `<div class="field"><div class="field-name">Vendor</div><div class="field-value">${log.vendor}</div></div>` : ''}
         ${log.vendor_account ? `<div class="field"><div class="field-name">Account #</div><div class="field-value">${log.vendor_account}</div></div>` : ''}
-        ${log.client_name ? `<div class="field"><div class="field-name">Client Name</div><div class="field-value">${log.client_name}</div></div>` : ''}
         <div class="field"><div class="field-name">User</div><div class="field-value">${log.user_id}</div></div>
       </div>
       <div class="log-url"><strong>Source:</strong> ${log.source_url}</div>
@@ -135,34 +195,37 @@ export async function ViewLogs(
   } catch (error) {
     context.error('Error reading logs:', error);
     
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
     return {
       status: 500,
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/html',
       },
-      body: `
+      body: generateErrorHtml('Error Reading Logs', 'Server error'),
+    };
+  }
+}
+
+function generateErrorHtml(title: string, message: string): string {
+  return `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Error</title>
+  <title>${title}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .error { background: #ffebee; color: #c62828; padding: 20px; border-radius: 5px; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+    .error { background: #ffebee; color: #c62828; padding: 20px; border-radius: 5px; max-width: 600px; margin: 50px auto; }
+    h1 { color: #c62828; }
   </style>
 </head>
 <body>
-  <h1>Error Reading Logs</h1>
   <div class="error">
-    <p><strong>Error:</strong> ${errorMessage}</p>
+    <h1>${title}</h1>
+    <p>${message}</p>
   </div>
 </body>
 </html>
-      `,
-    };
-  }
+  `;
 }
 
 app.http('ViewLogs', {

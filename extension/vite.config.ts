@@ -2,14 +2,30 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import { copyFileSync, mkdirSync } from 'fs';
+import { build } from 'esbuild';
 
 export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'copy-manifest',
-      closeBundle() {
+      name: 'build-content-script',
+      async closeBundle() {
+        // Build content script with esbuild as IIFE
+        await build({
+          entryPoints: ['src/content/main.ts'],
+          bundle: true,
+          format: 'iife',
+          outfile: 'dist/content/content.js',
+          define: {
+            '__API_URL__': JSON.stringify('https://ssvf-capture-api.azurewebsites.net/api/captures'),
+          },
+          minify: true,
+        });
+        console.log('✓ Content script built with esbuild');
+
+        // Copy manifest
         copyFileSync('manifest.json', 'dist/manifest.json');
+        
         // Copy icons
         try {
           mkdirSync('dist/icons', { recursive: true });
@@ -27,12 +43,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'src/popup/index.html'),
-        content: resolve(__dirname, 'src/content/main.ts'),
       },
       output: {
-        entryFileNames: (chunkInfo) => {
-          return chunkInfo.name === 'content' ? 'content/[name].js' : '[name]/[name].js';
-        },
+        entryFileNames: '[name]/[name].js',
         chunkFileNames: '[name]/[name].js',
         assetFileNames: '[name]/[name].[ext]',
       },

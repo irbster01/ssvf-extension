@@ -4,5 +4,6 @@
 import '../CaptureIngest/index';
 import '../ViewLogs/index';
 import '../GetSubmissions/index';
+import '../Attachments/index';
 
 // The functions are registered via app.http() calls in their respective modules

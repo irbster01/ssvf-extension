@@ -97,11 +97,22 @@
 **Files Changed:**
 - `extension/manifest.json` - Added CSP
 
+### 9. **ViewLogs Endpoint Security** (CRITICAL - COMPLETED)
+**Previous Issue:** `/api/logs` endpoint was publicly accessible with no authentication  
+**Fix Implemented:**
+- Added Entra ID JWT token validation (only JWT tokens accepted, legacy tokens rejected)
+- Restricted CORS to specific origins (`https://ssvf-capture-api.azurewebsites.net`, `https://wscs.wellsky.com`)
+- Added rate limiting (shares rate limit store with other endpoints)
+- Generic error messages returned to client (detailed errors logged server-side only)
+
+**Files Changed:**
+- `api/ViewLogs/index.ts` - Added authentication, CORS restrictions, rate limiting
+
 ---
 
 ## ⏳ Remaining Tasks
 
-### 9. **Reduce Managed Identity Permissions** (MANUAL - AZURE PORTAL)
+### ~~10.~~ **Reduce Managed Identity Permissions** (MANUAL - AZURE PORTAL)
 **Current State:** Function app's managed identity has "Contributor" role on Fabric workspace  
 **Required Action:**
 1. Go to Azure Portal → Fabric Workspace → Access Control (IAM)
@@ -114,7 +125,7 @@
 
 **Why:** Principle of least privilege - function only needs write access, not delete/modify
 
-### 10. **Security Audit Logging** (CODE - FUTURE ENHANCEMENT)
+### ~~11.~~ **Security Audit Logging** (CODE - FUTURE ENHANCEMENT)
 **Recommended Implementation:**
 - Log all authentication attempts to Azure Application Insights
 - Log rate limit violations with user ID and timestamp

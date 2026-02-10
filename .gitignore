@@ -9,3 +9,7 @@ Thumbs.db
 
 # Azure Functions local settings
 api/local.settings.json
+
+# Build/deploy artifacts
+*.zip
+spa-config.json

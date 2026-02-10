@@ -117,6 +117,42 @@ export async function queryCaptures(options: QueryOptions = {}): Promise<Service
   return resources;
 }
 
+/**
+ * Update a capture document
+ */
+export async function updateCapture(
+  id: string,
+  serviceType: string,
+  updates: Partial<ServiceCapture>
+): Promise<ServiceCapture> {
+  const cont = await getContainer();
+  
+  // Use service_type as partition key
+  const partitionKey = serviceType || 'TFA';
+  
+  // Read existing document
+  const { resource: existing } = await cont.item(id, partitionKey).read<ServiceCapture>();
+  
+  if (!existing) {
+    throw new Error(`Document not found: ${id}`);
+  }
+  
+  // Merge updates
+  const updated = {
+    ...existing,
+    ...updates,
+    id: existing.id, // Preserve ID
+    service_type: existing.service_type, // Preserve partition key
+  };
+  
+  // Replace the document
+  const { resource } = await cont.item(id, partitionKey).replace(updated);
+  
+  return resource as ServiceCapture;
+}
+
+export type SubmissionStatus = 'New' | 'In Progress' | 'Complete';
+
 export interface ServiceCapture {
   id?: string;
   user_id: string;
@@ -126,10 +162,28 @@ export interface ServiceCapture {
   service_type: string;
   form_data: Record<string, any>;
   // Extracted key fields for easy querying/reporting
+  client_id?: string;       // Wellsky client ID - required for linking
+  client_name?: string;
   vendor?: string;
   vendor_account?: string;
   service_amount?: number;
-  client_name?: string;
+  // SSVF program fields
+  region?: 'Shreveport' | 'Monroe' | 'Arkansas';
+  program_category?: 'Homeless Prevention' | 'Rapid Rehousing';
+  // Workflow status fields
+  status?: SubmissionStatus;
+  notes?: string;
+  updated_by?: string;
+  updated_at?: string;
+  // Attachments
+  attachments?: {
+    blobName: string;
+    fileName: string;
+    contentType: string;
+    size: number;
+    uploadedAt: string;
+    uploadedBy?: string;
+  }[];
 }
 
 export interface QueryOptions {

@@ -1,78 +1,214 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { queryCaptures, updateCapture, ServiceCapture } from '../shared/cosmosClient';
+import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
+import { checkRateLimit } from '../AuthToken';
 
-const API_KEY = process.env.API_KEY || '';
-const LAKEHOUSE_URL = 'https://nzrmcoc5w6tebmq3bkxbdeohga-y7eucqqylblezera7l3de5axoa.datawarehouse.fabric.microsoft.com';
+// Allowed origins for the accounting dashboard
+const ALLOWED_ORIGINS = [
+  'https://ssvf-capture-api.azurewebsites.net',
+  'https://wscs.wellsky.com',
+  'https://wonderful-sand-00129870f.1.azurestaticapps.net',  // SWA dashboard
+  'http://localhost:4280',  // Local dev
+  'http://localhost:5173',  // Vite dev
+];
+
+function getCorsHeaders(origin: string) {
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
+
+async function validateAuth(request: HttpRequest, context: InvocationContext): Promise<{ valid: boolean; userId?: string; email?: string }> {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    context.warn('Missing or invalid authorization header');
+    return { valid: false };
+  }
+
+  const token = authHeader.substring(7);
+
+  if (!isJwtToken(token)) {
+    context.warn('Non-JWT token rejected');
+    return { valid: false };
+  }
+
+  const validation = await validateEntraIdToken(token);
+  if (!validation.valid || !validation.userId) {
+    context.warn('Invalid or expired Entra ID token');
+    return { valid: false };
+  }
+
+  return { valid: true, userId: validation.userId, email: validation.email };
+}
 
 export async function GetSubmissions(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
-  context.log('=== GetSubmissions: Fetching recent submissions ===');
+  context.log('=== GetSubmissions: Processing request ===');
 
-  // CORS headers
-  const origin = request.headers.get('origin') || '*';
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
-    'Access-Control-Allow-Credentials': 'false',
-  };
+  const origin = request.headers.get('origin') || '';
+  const corsHeaders = getCorsHeaders(origin);
 
   // Handle preflight OPTIONS request
   if (request.method === 'OPTIONS') {
-    context.log('Handling OPTIONS preflight request');
-    return {
-      status: 204,
-      headers: corsHeaders,
-    };
+    return { status: 204, headers: corsHeaders };
   }
 
-  // Validate API key
-  const apiKey = request.headers.get('x-api-key');
-  const expectedKey = process.env.API_KEY || '';
-  
-  if (apiKey !== expectedKey) {
-    context.warn(`❌ Invalid API key`);
+  // Validate authentication
+  const auth = await validateAuth(request, context);
+  if (!auth.valid) {
     return {
       status: 401,
       jsonBody: { error: 'Unauthorized' },
       headers: corsHeaders,
     };
   }
-  context.log(`✅ API key validated successfully`);
+
+  // Rate limiting
+  const rateLimitCheck = checkRateLimit(auth.userId!);
+  if (!rateLimitCheck.allowed) {
+    return {
+      status: 429,
+      jsonBody: { error: 'Too many requests' },
+      headers: { ...corsHeaders, 'Retry-After': '60' },
+    };
+  }
+
+  context.log(`✅ Authenticated: ${auth.email || auth.userId}`);
 
   try {
-    // For now, return mock data since Fabric SQL endpoint needs proper setup
-    // TODO: Configure Fabric SQL Analytics endpoint properly
-    
-    const limit = parseInt(request.query.get('limit') || '20');
-    
-    context.log('Returning submissions from storage (Fabric endpoint needs configuration)');
+    if (request.method === 'GET') {
+      // GET: Fetch submissions
+      const startDate = request.query.get('startDate') || undefined;
+      const endDate = request.query.get('endDate') || undefined;
+      const serviceType = request.query.get('serviceType') || undefined;
+      
+      const submissions = await queryCaptures({ startDate, endDate, serviceType });
+      
+      context.log(`Found ${submissions.length} submissions`);
+      
+      return {
+        status: 200,
+        jsonBody: submissions,
+        headers: corsHeaders,
+      };
+    }
 
-    // Mock data structure - in production this would come from Fabric
-    // For now, the sidebar will fall back to Chrome local storage
-    // which already has the real data from captures
-    
     return {
-      status: 200,
-      jsonBody: {
-        success: true,
-        submissions: [],
-        count: 0,
-        message: 'Using local storage fallback - Fabric SQL endpoint configuration pending',
-      },
+      status: 405,
+      jsonBody: { error: 'Method not allowed' },
       headers: corsHeaders,
     };
 
   } catch (error: any) {
-    context.error('Error fetching submissions:', error);
+    context.error('Error processing request:', error);
     
     return {
       status: 500,
-      jsonBody: {
-        error: 'Internal server error',
-        message: error.message,
-      },
+      jsonBody: { error: 'Internal server error' },
+      headers: corsHeaders,
+    };
+  }
+}
+
+export async function UpdateSubmission(
+  request: HttpRequest,
+  context: InvocationContext
+): Promise<HttpResponseInit> {
+  context.log('=== UpdateSubmission: Processing request ===');
+
+  const origin = request.headers.get('origin') || '';
+  const corsHeaders = getCorsHeaders(origin);
+
+  // Handle preflight OPTIONS request
+  if (request.method === 'OPTIONS') {
+    return { status: 204, headers: corsHeaders };
+  }
+
+  // Validate authentication
+  const auth = await validateAuth(request, context);
+  if (!auth.valid) {
+    return {
+      status: 401,
+      jsonBody: { error: 'Unauthorized' },
+      headers: corsHeaders,
+    };
+  }
+
+  // Rate limiting
+  const rateLimitCheck = checkRateLimit(auth.userId!);
+  if (!rateLimitCheck.allowed) {
+    return {
+      status: 429,
+      jsonBody: { error: 'Too many requests' },
+      headers: { ...corsHeaders, 'Retry-After': '60' },
+    };
+  }
+
+  context.log(`✅ Authenticated: ${auth.email || auth.userId}`);
+
+  try {
+    // Get ID from route parameter
+    const id = request.params.id;
+    if (!id) {
+      return {
+        status: 400,
+        jsonBody: { error: 'Missing submission ID' },
+        headers: corsHeaders,
+      };
+    }
+
+    const body = await request.json() as Partial<ServiceCapture> & { service_type: string };
+    
+    if (!body.service_type) {
+      return {
+        status: 400,
+        jsonBody: { error: 'service_type is required' },
+        headers: corsHeaders,
+      };
+    }
+
+    // Only allow updating specific fields
+    const allowedUpdates: Partial<ServiceCapture> = {};
+    const editableFields: (keyof ServiceCapture)[] = [
+      'client_id', 'client_name', 'vendor', 'vendor_account',
+      'service_amount', 'region', 'program_category', 'status', 'notes', 'updated_by', 'updated_at'
+    ];
+
+    for (const field of editableFields) {
+      if (body[field] !== undefined) {
+        (allowedUpdates as any)[field] = body[field];
+      }
+    }
+
+    context.log(`Updating submission ${id} with:`, allowedUpdates);
+
+    const updated = await updateCapture(id, body.service_type, allowedUpdates);
+    
+    return {
+      status: 200,
+      jsonBody: updated,
+      headers: corsHeaders,
+    };
+
+  } catch (error: any) {
+    context.error('Error updating submission:', error);
+    
+    if (error.message?.includes('not found')) {
+      return {
+        status: 404,
+        jsonBody: { error: 'Submission not found' },
+        headers: corsHeaders,
+      };
+    }
+    
+    return {
+      status: 500,
+      jsonBody: { error: 'Internal server error' },
       headers: corsHeaders,
     };
   }
@@ -83,4 +219,11 @@ app.http('GetSubmissions', {
   route: 'submissions',
   authLevel: 'anonymous',
   handler: GetSubmissions,
+});
+
+app.http('UpdateSubmission', {
+  methods: ['PATCH', 'OPTIONS'],
+  route: 'submissions/{id}',
+  authLevel: 'anonymous',
+  handler: UpdateSubmission,
 });

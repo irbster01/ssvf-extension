@@ -145,11 +145,21 @@ export async function CaptureIngest(
 
     // Extract key fields from form_data for easier querying/reporting
     const formData = body.form_data;
+    
+    // Extract client_id from URL if not in form_data
+    // URL format: ...#loadClient;clientId=8627310
+    let clientIdFromUrl: string | undefined;
+    const urlMatch = body.source_url.match(/clientId=(\d+)/);
+    if (urlMatch) {
+      clientIdFromUrl = urlMatch[1];
+    }
+    
     const extractedFields = {
+      client_id: (formData.client_id || clientIdFromUrl) as string | undefined,
+      client_name: (formData.client_name || formData.name_on_bill) as string | undefined,
       vendor: formData.vendor as string | undefined,
       vendor_account: formData.vendor_client_account_number as string | undefined,
       service_amount: parseFloat(formData.service_cost_amount) || undefined,
-      client_name: formData.name_on_bill as string | undefined,
     };
 
     // Build the capture document

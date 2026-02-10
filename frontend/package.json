@@ -1,7 +1,7 @@
 {
-  "name": "service-log-extension",
+  "name": "ssvf-accounting-dashboard",
   "version": "1.0.0",
-  "description": "Chrome extension to capture service submission data",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,17 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@azure/msal-browser": "^3.10.0",
+    "@azure/msal-browser": "^3.6.0",
+    "@azure/msal-react": "^2.0.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.258",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
-    "esbuild": "^0.27.3",
     "typescript": "^5.3.3",
-    "vite": "^5.0.8"
+    "vite": "^5.0.10"
   }
 }
