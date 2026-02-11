@@ -1,13 +1,17 @@
 import { Configuration, LogLevel } from '@azure/msal-browser';
 import { Capacitor } from '@capacitor/core';
 
+const isNative = Capacitor.isNativePlatform();
+
 // Redirect URI depends on platform:
 // - Capacitor iOS/Android: capacitor://localhost (registered as Mobile/Desktop app in Azure AD)
 // - SWA: https://wonderful-sand-00129870f.1.azurestaticapps.net (registered as SPA)
 // - Local dev: http://localhost:5173 (registered as SPA)
-const redirectUri = Capacitor.isNativePlatform()
+const redirectUri = isNative
   ? 'capacitor://localhost'
   : window.location.origin;
+
+console.log('[MSAL Config] isNative:', isNative, 'redirectUri:', redirectUri);
 
 export const msalConfig: Configuration = {
   auth: {
@@ -20,11 +24,15 @@ export const msalConfig: Configuration = {
     // Redirect URI - capacitor://localhost for iOS app, SWA URL for web
     redirectUri: redirectUri,
     postLogoutRedirectUri: redirectUri,
-    navigateToLoginRequestUrl: true,
+    // CRITICAL for Capacitor: false prevents MSAL from doing an extra navigation
+    // after processing the redirect, which would lose the auth state in WKWebView
+    navigateToLoginRequestUrl: false,
   },
   cache: {
     cacheLocation: 'localStorage',
-    storeAuthStateInCookie: false,
+    // In Capacitor WKWebView, sessionStorage may not survive cross-origin navigation.
+    // Storing auth state in cookies provides a fallback for the PKCE code verifier.
+    storeAuthStateInCookie: isNative,
   },
   system: {
     loggerOptions: {
@@ -37,9 +45,16 @@ export const msalConfig: Configuration = {
           case LogLevel.Warning:
             console.warn('[MSAL]', message);
             break;
+          case LogLevel.Info:
+            console.info('[MSAL]', message);
+            break;
+          case LogLevel.Verbose:
+            console.debug('[MSAL]', message);
+            break;
         }
       },
-      logLevel: LogLevel.Warning,
+      // Verbose logging on native to diagnose auth issues
+      logLevel: isNative ? LogLevel.Verbose : LogLevel.Warning,
       piiLoggingEnabled: false,
     },
   },

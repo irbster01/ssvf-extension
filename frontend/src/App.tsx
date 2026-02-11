@@ -7,7 +7,10 @@ function App() {
   const isAuthenticated = useIsAuthenticated();
   const { instance, inProgress, accounts } = useMsal();
 
+  console.log('[App] Render - isAuthenticated:', isAuthenticated, 'inProgress:', inProgress, 'accounts:', accounts.length);
+
   const handleLogin = () => {
+    console.log('[App] Starting loginRedirect...');
     instance.loginRedirect(loginRequest).catch((error) => {
       console.error('Login failed:', error);
     });
@@ -22,7 +25,7 @@ function App() {
   if (inProgress !== InteractionStatus.None) {
     return (
       <div className="app">
-        <div className="loading">Authenticating...</div>
+        <div className="loading">Authenticating... ({inProgress})</div>
       </div>
     );
   }
