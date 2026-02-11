@@ -78,7 +78,8 @@ jobs:
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+          # Install with UUID filename so Xcode can find it
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/e5df7170-5d93-4350-8f66-2e978e708c53.mobileprovision
 
       - name: Build & Archive
         working-directory: frontend/ios/App
@@ -89,9 +90,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             DEVELOPMENT_TEAM=84R9Q4M89Q \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="SSVF_TFA_App_Store" \
+            CODE_SIGN_STYLE=Automatic \
             archive
 
       - name: Export IPA
