@@ -88,6 +88,10 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/App.xcarchive \
+            DEVELOPMENT_TEAM=84R9Q4M89Q \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="SSVF_TFA_App_Store" \
             archive
 
       - name: Export IPA

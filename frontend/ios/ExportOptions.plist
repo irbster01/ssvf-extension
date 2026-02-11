@@ -4,12 +4,21 @@
 <dict>
     <key>method</key>
     <string>app-store-connect</string>
+    <key>teamID</key>
+    <string>84R9Q4M89Q</string>
     <key>uploadBitcode</key>
     <false/>
     <key>uploadSymbols</key>
     <true/>
     <key>signingStyle</key>
-    <string>automatic</string>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>org.voanla.ssvftfa</key>
+        <string>SSVF_TFA_App_Store</string>
+    </dict>
     <key>destination</key>
     <string>upload</string>
 </dict>
