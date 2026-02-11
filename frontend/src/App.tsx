@@ -31,6 +31,7 @@ function App() {
   }
 
   if (!isAuthenticated) {
+    const debug = (window as any).__authDebug || { status: 'unknown', details: '' };
     return (
       <div className="app">
         <div className="login-container">
@@ -39,6 +40,11 @@ function App() {
           <button className="btn btn-primary" onClick={handleLogin}>
             Sign in with Microsoft
           </button>
+          <div style={{ marginTop: '2rem', fontSize: '0.7rem', color: '#888', wordBreak: 'break-all', maxWidth: '300px', textAlign: 'left' }}>
+            <div>Auth: {debug.status}</div>
+            <div>{debug.details}</div>
+            <div>URL: {window.location.href}</div>
+          </div>
         </div>
       </div>
     );

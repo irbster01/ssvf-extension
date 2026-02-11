@@ -19,7 +19,14 @@ const config: CapacitorConfig = {
       'login.windows.net',
     ],
   },
-  plugins: {},
+  plugins: {
+    // Route fetch/XHR through native HTTP layer — bypasses CORS restrictions
+    // in WKWebView. Without this, MSAL's token exchange POST to Azure AD
+    // fails because the capacitor:// origin isn't allowed by Azure's CORS policy.
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
 };
 
 export default config;

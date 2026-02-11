@@ -30,8 +30,11 @@ export const msalConfig: Configuration = {
   },
   cache: {
     cacheLocation: 'localStorage',
-    // In Capacitor WKWebView, sessionStorage may not survive cross-origin navigation.
-    // Storing auth state in cookies provides a fallback for the PKCE code verifier.
+    // CRITICAL for Capacitor: Store PKCE code_verifier/state/nonce in localStorage
+    // instead of sessionStorage. In WKWebView, sessionStorage for the capacitor://
+    // origin can be lost when navigating to login.microsoftonline.com and back.
+    temporaryCacheLocation: isNative ? 'localStorage' : 'sessionStorage',
+    // Also store auth state in cookies as a second fallback
     storeAuthStateInCookie: isNative,
   },
   system: {

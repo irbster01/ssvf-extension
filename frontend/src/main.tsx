@@ -15,6 +15,9 @@ console.log('[App Boot] location:', JSON.stringify({
   pathname: window.location.pathname,
 }));
 
+// Store auth debug info for on-screen display in Capacitor
+(window as any).__authDebug = { status: 'initializing', details: '' };
+
 const msalInstance = new PublicClientApplication(msalConfig);
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 
@@ -35,18 +38,21 @@ msalInstance.initialize().then(async () => {
     const response = await msalInstance.handleRedirectPromise();
     if (response) {
       console.log('[MSAL] Redirect response received, account:', response.account?.username);
+      (window as any).__authDebug = { status: 'redirect-success', details: `Account: ${response.account?.username}` };
       msalInstance.setActiveAccount(response.account);
     } else {
       console.log('[MSAL] No redirect response (normal page load)');
       // Set active account from cache if available
       const accounts = msalInstance.getAllAccounts();
       console.log('[MSAL] Cached accounts:', accounts.length);
+      (window as any).__authDebug = { status: 'no-redirect', details: `Hash: ${window.location.hash.substring(0, 80)} | Cached accounts: ${accounts.length}` };
       if (accounts.length > 0) {
         msalInstance.setActiveAccount(accounts[0]);
       }
     }
   } catch (error) {
     console.error('[MSAL] handleRedirectPromise failed:', error);
+    (window as any).__authDebug = { status: 'redirect-error', details: String(error) };
   }
 
   // Listen for login success events
