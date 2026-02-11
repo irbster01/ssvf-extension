@@ -2,6 +2,7 @@
 // This file imports all function handlers to ensure they are registered with the runtime
 
 import '../CaptureIngest/index';
+import '../ExportCaptures/index';
 import '../ViewLogs/index';
 import '../GetSubmissions/index';
 import '../Attachments/index';

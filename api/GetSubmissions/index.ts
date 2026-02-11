@@ -8,6 +8,7 @@ const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
   'https://wscs.wellsky.com',
   'https://wonderful-sand-00129870f.1.azurestaticapps.net',  // SWA dashboard
+  'https://ssvf.northla.app',  // SWA custom domain
   'http://localhost:4280',  // Local dev
   'http://localhost:5173',  // Vite dev
 ];

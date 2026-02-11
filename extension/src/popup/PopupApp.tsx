@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { signIn, signOut, getCurrentAccount } from '../auth/authService';
+import { signIn, signOut, getCurrentAccount, silentTokenRefresh, getValidToken } from '../auth/authService';
 import { API_URL } from '../config';
 
 interface CaptureLog {
@@ -19,6 +19,28 @@ interface Stats {
 
 type SSVFRegion = 'Shreveport' | 'Monroe' | 'Arkansas';
 type ProgramCategory = 'Homeless Prevention' | 'Rapid Rehousing';
+type FinancialAssistanceType = 
+  | 'Rental Assistance'
+  | 'Moving Cost Assistance'
+  | 'Utility Deposit'
+  | 'Security Deposit'
+  | 'Other as approved by VA'
+  | 'Utility Assistance'
+  | 'Motel/Hotel Voucher'
+  | 'Emergency Supplies'
+  | 'Transportation';
+
+const FINANCIAL_ASSISTANCE_TYPES: FinancialAssistanceType[] = [
+  'Rental Assistance',
+  'Moving Cost Assistance',
+  'Utility Deposit',
+  'Security Deposit',
+  'Other as approved by VA',
+  'Utility Assistance',
+  'Motel/Hotel Voucher',
+  'Emergency Supplies',
+  'Transportation',
+];
 
 interface ManualTFAForm {
   clientId: string;
@@ -27,6 +49,7 @@ interface ManualTFAForm {
   amount: string;
   region: SSVFRegion;
   programCategory: ProgramCategory;
+  assistanceType: FinancialAssistanceType;
   notes: string;
 }
 
@@ -61,6 +84,7 @@ export const PopupApp: React.FC = () => {
     amount: '',
     region: 'Shreveport',
     programCategory: 'Homeless Prevention',
+    assistanceType: 'Rental Assistance',
     notes: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,11 +179,7 @@ export const PopupApp: React.FC = () => {
     setSubmitMessage(null);
 
     try {
-      const token = await new Promise<string | null>((resolve) => {
-        chrome.storage.local.get(['authToken'], (result) => {
-          resolve(result.authToken || null);
-        });
-      });
+      let token = await getValidToken();
 
       if (!token) {
         setSubmitMessage({ type: 'error', text: 'Please sign in first' });
@@ -178,12 +198,13 @@ export const PopupApp: React.FC = () => {
           service_cost_amount: manualForm.amount,
           region: manualForm.region,
           program_category: manualForm.programCategory,
+          assistance_type: manualForm.assistanceType,
           notes: manualForm.notes,
           manual_entry: true,
         },
       };
 
-      const response = await fetch(API_URL, {
+      let response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,6 +212,33 @@ export const PopupApp: React.FC = () => {
         },
         body: JSON.stringify(payload),
       });
+
+      // Handle 401 - try silent refresh
+      if (response.status === 401) {
+        console.log('[PopupApp] Got 401 on submit, attempting silent token refresh...');
+        const newToken = await silentTokenRefresh();
+        
+        if (newToken) {
+          token = newToken;
+          // Retry with new token
+          response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+        } else {
+          // Silent refresh failed - user needs to sign in again
+          setIsAuthenticated(false);
+          setUserName('');
+          setUserEmail('');
+          setSubmitMessage({ type: 'error', text: 'Session expired. Please sign in again.' });
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       if (response.ok) {
         const result = await response.json().catch(() => null);
@@ -225,7 +273,7 @@ export const PopupApp: React.FC = () => {
         }
 
         setSubmitMessage({ type: 'success', text: 'TFA submitted successfully!' });
-        setManualForm({ clientId: '', clientName: '', vendor: '', amount: '', region: 'Shreveport', programCategory: 'Homeless Prevention', notes: '' });
+        setManualForm({ clientId: '', clientName: '', vendor: '', amount: '', region: 'Shreveport', programCategory: 'Homeless Prevention', assistanceType: 'Rental Assistance', notes: '' });
         setSelectedFiles([]);
         
         // Update local stats
@@ -301,23 +349,43 @@ export const PopupApp: React.FC = () => {
     setSubmissionsError(null);
     
     try {
-      const token = await new Promise<string | null>((resolve) => {
-        chrome.storage.local.get(['authToken'], (result) => {
-          resolve(result.authToken || null);
-        });
-      });
+      let token = await getValidToken();
 
       if (!token) {
         setSubmissionsError('Please sign in to view submissions');
+        setIsAuthenticated(false);
         return;
       }
 
-      const response = await fetch(`${API_URL.replace('/captures', '/submissions')}`, {
+      let response = await fetch(`${API_URL.replace('/captures', '/submissions')}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
+
+      // Handle 401 - try silent refresh
+      if (response.status === 401) {
+        console.log('[PopupApp] Got 401, attempting silent token refresh...');
+        const newToken = await silentTokenRefresh();
+        
+        if (newToken) {
+          // Retry with new token
+          response = await fetch(`${API_URL.replace('/captures', '/submissions')}`, {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+        } else {
+          // Silent refresh failed - user needs to sign in again
+          setIsAuthenticated(false);
+          setUserName('');
+          setUserEmail('');
+          setSubmissionsError('Session expired. Please sign in again.');
+          return;
+        }
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to fetch: ${response.status}`);
@@ -684,6 +752,20 @@ export const PopupApp: React.FC = () => {
                     <option value="Rapid Rehousing">Rapid Rehousing</option>
                   </select>
                 </div>
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={styles.label}>Assistance Type *</label>
+                <select
+                  value={manualForm.assistanceType}
+                  onChange={(e) => setManualForm({ ...manualForm, assistanceType: e.target.value as FinancialAssistanceType })}
+                  style={styles.input}
+                  required
+                >
+                  {FINANCIAL_ASSISTANCE_TYPES.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ marginBottom: '12px' }}>

@@ -216,6 +216,34 @@ function injectStyles() {
       color: #92400e;
       margin-bottom: 16px;
     }
+    .tfa-select-row {
+      display: flex;
+      flex-direction: column;
+      padding: 12px 0;
+      border-top: 1px solid #e9ecef;
+      margin-top: 8px;
+    }
+    .tfa-select-label {
+      color: #6b7280;
+      font-weight: 500;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .tfa-select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 14px;
+      background: white;
+      color: #1f2937;
+      cursor: pointer;
+    }
+    .tfa-select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    }
   `;
   document.head.appendChild(style);
 }
@@ -404,6 +432,18 @@ function captureFormData(): Record<string, any> {
 }
 
 // ============ CONFIRMATION MODAL ============
+const FINANCIAL_ASSISTANCE_TYPES = [
+  'Rental Assistance',
+  'Moving Cost Assistance',
+  'Utility Deposit',
+  'Security Deposit',
+  'Other as approved by VA',
+  'Utility Assistance',
+  'Motel/Hotel Voucher',
+  'Emergency Supplies',
+  'Transportation',
+];
+
 function showConfirmationModal(formData: Record<string, any>): Promise<boolean> {
   return new Promise((resolve) => {
     if (window.__tfaModalOpen) {
@@ -421,6 +461,10 @@ function showConfirmationModal(formData: Record<string, any>): Promise<boolean> 
 
     const overlay = document.createElement('div');
     overlay.className = 'tfa-modal-overlay';
+    const assistanceOptions = FINANCIAL_ASSISTANCE_TYPES.map(type => 
+      `<option value="${type}">${type}</option>`
+    ).join('');
+    
     overlay.innerHTML = `
       <div class="tfa-modal">
         <div class="tfa-modal-header">
@@ -445,6 +489,12 @@ function showConfirmationModal(formData: Record<string, any>): Promise<boolean> 
               <span class="tfa-field-label">Amount</span>
               <span class="tfa-field-value amount">${amount !== 'Not specified' ? '$' + amount : amount}</span>
             </div>
+            <div class="tfa-select-row">
+              <label class="tfa-select-label">Assistance Type *</label>
+              <select class="tfa-select" id="tfa-assistance-type">
+                ${assistanceOptions}
+              </select>
+            </div>
           </div>
           <div class="tfa-warning">
             Click <strong>Yes, Submit TFA</strong> to save this service for TFA tracking, or <strong>Skip</strong> if this service should not be recorded for TFA.
@@ -460,6 +510,13 @@ function showConfirmationModal(formData: Record<string, any>): Promise<boolean> 
     document.body.appendChild(overlay);
 
     const cleanup = (result: boolean) => {
+      if (result) {
+        // Add the selected assistance type to formData before submitting
+        const selectEl = document.getElementById('tfa-assistance-type') as HTMLSelectElement;
+        if (selectEl) {
+          formData['assistance_type'] = selectEl.value;
+        }
+      }
       window.__tfaModalOpen = false;
       overlay.remove();
       resolve(result);

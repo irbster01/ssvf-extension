@@ -14,6 +14,7 @@ export async function ViewLogs(
   const allowedOrigins = [
     'https://ssvf-capture-api.azurewebsites.net',  // Azure Functions host
     'https://wscs.wellsky.com',
+    'https://ssvf.northla.app',
   ];
   
   const corsHeaders = {

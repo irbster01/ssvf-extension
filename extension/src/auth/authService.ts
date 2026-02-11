@@ -156,3 +156,63 @@ export async function isAuthenticated(): Promise<boolean> {
   const account = await getCurrentAccount();
   return account !== null;
 }
+
+/**
+ * Try to silently refresh the token using cached auth
+ * Returns the new token if successful, null if user needs to re-authenticate interactively
+ */
+export async function silentTokenRefresh(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const authUrl = buildAuthUrl().replace('prompt=select_account', 'prompt=none');
+    
+    chrome.identity.launchWebAuthFlow(
+      {
+        url: authUrl,
+        interactive: false,
+      },
+      async (redirectUrl) => {
+        if (chrome.runtime.lastError || !redirectUrl) {
+          console.log('[Auth] Silent refresh failed, user needs to sign in again');
+          resolve(null);
+          return;
+        }
+        
+        const accessToken = parseTokenFromUrl(redirectUrl);
+        if (!accessToken) {
+          resolve(null);
+          return;
+        }
+        
+        // Update stored token
+        await chrome.storage.local.set({ authToken: accessToken });
+        console.log('[Auth] Token refreshed silently');
+        resolve(accessToken);
+      }
+    );
+  });
+}
+
+/**
+ * Get a valid token, attempting silent refresh if needed
+ * Returns the token or null if user needs to re-authenticate
+ */
+export async function getValidToken(): Promise<string | null> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['authToken'], async (result) => {
+      if (!result.authToken) {
+        resolve(null);
+        return;
+      }
+      
+      // Return the stored token - caller should handle 401 and call silentTokenRefresh
+      resolve(result.authToken);
+    });
+  });
+}
+
+/**
+ * Clear the stored auth token (call when 401 received)
+ */
+export async function clearAuthToken(): Promise<void> {
+  await chrome.storage.local.remove(['authToken']);
+}

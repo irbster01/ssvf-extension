@@ -274,3 +274,373 @@ tr:hover {
 .stat-card.new .value { color: #1565c0; }
 .stat-card.in-progress .value { color: #ef6c00; }
 .stat-card.complete .value { color: #2e7d32; }
+
+/* ========== Submit TFA Card ========== */
+.submit-tfa-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 20px;
+  margin-bottom: 24px;
+  border-left: 4px solid #0066cc;
+}
+
+.submit-tfa-card.collapsed {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.submit-tfa-card.collapsed:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+.submit-tfa-card.collapsed:active {
+  transform: translateY(0);
+}
+
+.submit-tfa-icon {
+  font-size: 2rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e3f2fd;
+  color: #0066cc;
+  border-radius: 12px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.submit-tfa-card h3 {
+  margin: 0 0 2px;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.submit-tfa-card p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.submit-tfa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.tfa-form .form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.tfa-form .form-row .form-group {
+  flex: 1;
+}
+
+.tfa-form .form-group {
+  margin-bottom: 14px;
+}
+
+.tfa-form .form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.tfa-form .form-group input,
+.tfa-form .form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  -webkit-appearance: none;
+}
+
+.tfa-form .form-group input:focus,
+.tfa-form .form-group select:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0,102,204,0.15);
+}
+
+.tfa-form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.tfa-form-actions .btn {
+  flex: 1;
+  padding: 12px;
+  font-size: 1rem;
+}
+
+.tfa-msg {
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.tfa-msg.success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.tfa-msg.error {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.file-input {
+  font-size: 0.9rem;
+}
+
+.file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+}
+
+.file-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #c62828;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+/* ========== Mobile Cards (hidden on desktop) ========== */
+.mobile-cards {
+  display: none;
+}
+
+.mobile-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  border-left: 4px solid #e0e0e0;
+}
+
+.mobile-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.mobile-card-top .status {
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  cursor: pointer;
+}
+
+.mobile-card-amount {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #2196F3;
+}
+
+.mobile-card-client {
+  margin-bottom: 12px;
+}
+
+.mobile-card-client strong {
+  font-size: 1.05rem;
+  color: #333;
+  display: block;
+}
+
+.mobile-card-id {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.mobile-card-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.mobile-card-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-card-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #999;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.mobile-card-detail > span:last-child {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.mobile-card-edit {
+  width: 100%;
+  padding: 10px;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.mobile-card-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+/* ========== Mobile Responsive ========== */
+@media (max-width: 768px) {
+  .app {
+    padding: 12px;
+  }
+
+  header {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+    padding: 12px 16px;
+  }
+
+  header h1 {
+    font-size: 1.2rem;
+  }
+
+  .user-info {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 12px 16px;
+  }
+
+  .stat-card .value {
+    font-size: 1.4rem;
+  }
+
+  /* Make the table scroll horizontally */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide desktop table, show mobile cards */
+  .desktop-table {
+    display: none;
+  }
+
+  .mobile-cards {
+    display: block;
+    padding: 12px;
+  }
+
+  table {
+    min-width: 700px;
+  }
+
+  th, td {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .toolbar .btn {
+    width: 100%;
+  }
+
+  .filters {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* TFA form mobile */
+  .tfa-form .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .submit-tfa-card {
+    padding: 16px;
+  }
+
+  .modal {
+    width: 95%;
+    max-height: 90vh;
+    margin: 8px;
+  }
+
+  .login-container {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 8px;
+  }
+
+  header h1 {
+    font-size: 1.05rem;
+  }
+
+  .submit-tfa-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+  }
+
+  .tfa-form .form-group input,
+  .tfa-form .form-group select {
+    padding: 12px;
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+
+  .tfa-form-actions {
+    flex-direction: column;
+  }
+}

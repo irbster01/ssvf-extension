@@ -14,7 +14,13 @@ export async function CaptureIngest(
   
   // CORS headers - RESTRICTED to specific origin only
   const origin = request.headers.get('origin') || '';
-  const allowedOrigins = ['https://wscs.wellsky.com'];
+  const allowedOrigins = [
+    'https://wscs.wellsky.com',
+    'https://wonderful-sand-00129870f.1.azurestaticapps.net',
+    'https://ssvf.northla.app',
+    'http://localhost:4280',
+    'http://localhost:5173',
+  ];
   
   const corsHeaders = {
     'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],

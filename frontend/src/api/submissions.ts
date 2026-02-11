@@ -99,3 +99,48 @@ function fileToBase64(file: File): Promise<string> {
     reader.onerror = reject;
   });
 }
+
+export interface TFASubmission {
+  clientId: string;
+  clientName: string;
+  vendor: string;
+  amount: string;
+  region: string;
+  programCategory: string;
+  assistanceType: string;
+  notes: string;
+}
+
+export async function submitCapture(token: string, tfa: TFASubmission): Promise<{ id: string }> {
+  const payload = {
+    user_id: 'unknown',
+    source_url: 'swa-dashboard',
+    captured_at_utc: new Date().toISOString(),
+    form_data: {
+      client_id: tfa.clientId,
+      client_name: tfa.clientName,
+      vendor: tfa.vendor,
+      service_cost_amount: tfa.amount,
+      region: tfa.region,
+      program_category: tfa.programCategory,
+      assistance_type: tfa.assistanceType,
+      notes: tfa.notes,
+      manual_entry: true,
+    },
+  };
+
+  const response = await fetch(`${API_BASE}/captures`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to submit TFA: ${response.status}`);
+  }
+
+  return response.json();
+}

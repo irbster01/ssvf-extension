@@ -3,6 +3,7 @@ import { useMsal } from '@azure/msal-react';
 import { Submission, SubmissionStatus } from '../types';
 import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl } from '../api/submissions';
 import EditModal from './EditModal';
+import SubmitTFA from './SubmitTFA';
 
 const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'In Progress', 'Complete'];
 
@@ -137,6 +138,8 @@ function Dashboard() {
     <>
       {error && <div className="error">{error}</div>}
 
+      <SubmitTFA getToken={getToken} onSubmitted={loadSubmissions} />
+
       <div className="stats">
         <div className="stat-card new">
           <h3>New</h3>
@@ -155,32 +158,33 @@ function Dashboard() {
       <div className="table-container">
         <div className="toolbar">
           <div className="filters">
-            <label>Status:</label>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <label htmlFor="status-filter">Status:</label>
+            <select id="status-filter" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="all">All ({submissions.length})</option>
               <option value="New">New ({stats.new})</option>
               <option value="In Progress">In Progress ({stats.inProgress})</option>
               <option value="Complete">Complete ({stats.complete})</option>
             </select>
           </div>
-          <button className="btn btn-primary" onClick={loadSubmissions}>
+          <button className="btn btn-primary" onClick={loadSubmissions} aria-label="Refresh submissions">
             Refresh
           </button>
         </div>
 
-        <table>
+        {/* Desktop table */}
+        <table className="desktop-table" aria-label="Submissions">
           <thead>
             <tr>
-              <th>Status</th>
-              <th>Date</th>
-              <th>Client</th>
-              <th>Region</th>
-              <th>Program</th>
-              <th>Vendor</th>
-              <th>Amount</th>
-              <th>Files</th>
-              <th>Captured By</th>
-              <th>Actions</th>
+              <th scope="col">Status</th>
+              <th scope="col">Date</th>
+              <th scope="col">Client</th>
+              <th scope="col">Region</th>
+              <th scope="col">Program</th>
+              <th scope="col">Vendor</th>
+              <th scope="col">Amount</th>
+              <th scope="col">Files</th>
+              <th scope="col">Captured By</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -198,6 +202,7 @@ function Dashboard() {
                       className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
                       value={submission.status}
                       onChange={e => handleStatusChange(submission, e.target.value as SubmissionStatus)}
+                      aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
                       style={{ 
                         border: 'none', 
                         cursor: 'pointer',
@@ -241,6 +246,7 @@ function Dashboard() {
                     <button
                       className="btn btn-secondary btn-small"
                       onClick={() => setEditingSubmission(submission)}
+                      aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
                     >
                       Edit
                     </button>
@@ -250,6 +256,66 @@ function Dashboard() {
             )}
           </tbody>
         </table>
+
+        {/* Mobile cards */}
+        <div className="mobile-cards" role="list" aria-label="Submissions">
+          {filteredSubmissions.length === 0 ? (
+            <div className="mobile-card-empty">No submissions found</div>
+          ) : (
+            filteredSubmissions.map(submission => (
+              <article key={submission.id} className="mobile-card" role="listitem">
+                <div className="mobile-card-top">
+                  <select
+                    className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
+                    value={submission.status}
+                    onChange={e => handleStatusChange(submission, e.target.value as SubmissionStatus)}
+                    aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
+                  >
+                    {STATUS_OPTIONS.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                  <span className="mobile-card-amount">{formatAmount(submission.service_amount)}</span>
+                </div>
+                <div className="mobile-card-client">
+                  <strong>{submission.client_name || 'No Name'}</strong>
+                  <span className="mobile-card-id">{submission.client_id || 'No ID'}</span>
+                </div>
+                <div className="mobile-card-details">
+                  <div className="mobile-card-detail">
+                    <span className="mobile-card-label">Date</span>
+                    <span>{formatDate(submission.captured_at_utc)}</span>
+                  </div>
+                  <div className="mobile-card-detail">
+                    <span className="mobile-card-label">Region</span>
+                    <span>{submission.region || '-'}</span>
+                  </div>
+                  <div className="mobile-card-detail">
+                    <span className="mobile-card-label">Program</span>
+                    <span>{submission.program_category || '-'}</span>
+                  </div>
+                  <div className="mobile-card-detail">
+                    <span className="mobile-card-label">Vendor</span>
+                    <span>{submission.vendor || '-'}</span>
+                  </div>
+                  {submission.attachments && submission.attachments.length > 0 && (
+                    <div className="mobile-card-detail">
+                      <span className="mobile-card-label">Files</span>
+                      <span>📎 {submission.attachments.length}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="btn btn-secondary mobile-card-edit"
+                  onClick={() => setEditingSubmission(submission)}
+                  aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
+                >
+                  Edit
+                </button>
+              </article>
+            ))
+          )}
+        </div>
       </div>
 
       {editingSubmission && (

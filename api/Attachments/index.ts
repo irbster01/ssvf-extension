@@ -8,6 +8,7 @@ const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
   'https://wscs.wellsky.com',
   'https://wonderful-sand-00129870f.1.azurestaticapps.net',
+  'https://ssvf.northla.app',
   'http://localhost:4280',
   'http://localhost:5173',
 ];
