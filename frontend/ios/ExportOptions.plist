@@ -11,7 +11,14 @@
     <key>uploadSymbols</key>
     <true/>
     <key>signingStyle</key>
-    <string>automatic</string>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>org.voanla.ssvftfa</key>
+        <string>SSVF_TFA_App_Store</string>
+    </dict>
     <key>destination</key>
     <string>upload</string>
 </dict>
