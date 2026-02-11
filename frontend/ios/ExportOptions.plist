@@ -17,7 +17,7 @@
     <key>provisioningProfiles</key>
     <dict>
         <key>org.voanla.ssvftfa</key>
-        <string>SSVF_TFA_App_Store</string>
+        <string>SSVF TFA App Store</string>
     </dict>
     <key>destination</key>
     <string>upload</string>

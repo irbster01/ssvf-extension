@@ -81,6 +81,20 @@ jobs:
           # Install with UUID filename so Xcode can find it
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/e5df7170-5d93-4350-8f66-2e978e708c53.mobileprovision
 
+      - name: Verify signing setup
+        run: |
+          echo "=== Installed provisioning profiles ==="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo ""
+          echo "=== Profile details ==="
+          security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/e5df7170-5d93-4350-8f66-2e978e708c53.mobileprovision | grep -A1 "Name\|UUID\|TeamIdentifier\|application-identifier"
+          echo ""
+          echo "=== Keychain identities ==="
+          security find-identity -v -p codesigning
+          echo ""
+          echo "=== App project signing settings ==="
+          grep -A2 "CODE_SIGN_STYLE\|DEVELOPMENT_TEAM\|PROVISIONING_PROFILE" frontend/ios/App/App.xcodeproj/project.pbxproj | head -30
+
       - name: Build & Archive
         working-directory: frontend/ios/App
         run: |
