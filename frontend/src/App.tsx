@@ -8,18 +8,18 @@ function App() {
   const { instance, inProgress, accounts } = useMsal();
 
   const handleLogin = () => {
-    instance.loginPopup(loginRequest).catch((error) => {
+    instance.loginRedirect(loginRequest).catch((error) => {
       console.error('Login failed:', error);
     });
   };
 
   const handleLogout = () => {
-    instance.logoutPopup().catch((error) => {
+    instance.logoutRedirect().catch((error) => {
       console.error('Logout failed:', error);
     });
   };
 
-  if (inProgress === InteractionStatus.Login || inProgress === InteractionStatus.Logout) {
+  if (inProgress !== InteractionStatus.None) {
     return (
       <div className="app">
         <div className="loading">Authenticating...</div>

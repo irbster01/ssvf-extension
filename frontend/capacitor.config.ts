@@ -4,13 +4,18 @@ const config: CapacitorConfig = {
   appId: 'org.voanla.ssvftfa',
   appName: 'SSVF TFA Tracker',
   webDir: 'dist',
-  // Note: Do NOT use server.url for App Store builds - Apple may reject apps
-  // that are just "website wrappers". The app bundles the web assets locally.
+  // iOS app loads from the live SWA URL so MSAL redirect auth
+  // works correctly in WKWebView (popups are blocked).
   ios: {
     contentInset: 'automatic',
     backgroundColor: '#f5f5f5',
     preferredContentMode: 'mobile',
     scheme: 'SSVF TFA',
+  },
+  server: {
+    // Load from the live SWA so MSAL redirect auth works in WKWebView
+    url: 'https://wonderful-sand-00129870f.1.azurestaticapps.net',
+    cleartext: false,
   },
   plugins: {
     // Add plugin configs as needed
