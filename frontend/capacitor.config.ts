@@ -8,12 +8,13 @@ const config: CapacitorConfig = {
     contentInset: 'automatic',
     backgroundColor: '#f5f5f5',
     preferredContentMode: 'mobile',
-    // Use http scheme so the app runs at http://localhost
-    // Azure AD only accepts https:// or http://localhost as SPA redirect URIs
-    scheme: 'http',
     allowsLinkPreview: false,
   },
   server: {
+    // Controls the WKWebView URL scheme.
+    // Default is "capacitor" → capacitor://localhost
+    // Set to "http" → http://localhost (accepted by Azure AD as SPA redirect URI)
+    iosScheme: 'http',
     // Allow navigation to Microsoft login pages within the WKWebView
     allowNavigation: [
       'login.microsoftonline.com',
