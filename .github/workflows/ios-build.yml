@@ -35,6 +35,14 @@ jobs:
         working-directory: frontend
         run: npx cap sync ios
 
+      - name: Set build number
+        run: |
+          # Use GitHub run number as CFBundleVersion (must increment each upload)
+          BUILD_NUMBER=${{ github.run_number }}
+          INFO_PLIST="frontend/ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$INFO_PLIST"
+          echo "Set CFBundleVersion to $BUILD_NUMBER"
+
       - name: Setup Ruby (for CocoaPods)
         uses: ruby/setup-ruby@v1
         with:
