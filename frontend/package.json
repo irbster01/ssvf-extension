@@ -11,6 +11,9 @@
   "dependencies": {
     "@azure/msal-browser": "^3.6.0",
     "@azure/msal-react": "^2.0.8",
+    "@capacitor/cli": "^7.5.0",
+    "@capacitor/core": "^7.5.0",
+    "@capacitor/ios": "^7.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
