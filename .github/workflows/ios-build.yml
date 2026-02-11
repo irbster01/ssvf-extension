@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-and-upload:
-    runs-on: macos-14  # macOS Sonoma with Xcode 15
+    runs-on: macos-15  # macOS Sequoia with Xcode 16
     
     steps:
       - name: Checkout
