@@ -1,7 +1,15 @@
 import { Configuration, LogLevel } from '@azure/msal-browser';
 
-// Get the current URL for redirect (works for local dev and deployed SWA)
-const redirectUri = window.location.origin;
+// Detect if running inside Capacitor native app
+const isCapacitor = typeof window !== 'undefined' &&
+  (window.location.protocol === 'capacitor:' ||
+   window.location.hostname === 'localhost' && /Capacitor/i.test(navigator.userAgent));
+
+// In Capacitor, the origin is capacitor://localhost
+// On web/SWA, use the actual origin
+const redirectUri = isCapacitor
+  ? 'capacitor://localhost'
+  : window.location.origin;
 
 export const msalConfig: Configuration = {
   auth: {
@@ -11,7 +19,7 @@ export const msalConfig: Configuration = {
     // Your Azure AD tenant ID
     authority: 'https://login.microsoftonline.com/38c1626e-b75d-40a6-b21b-0aae1191c730',
     
-    // Redirect URI - will be the SWA URL
+    // Redirect URI - capacitor://localhost for iOS app, SWA URL for web
     redirectUri: redirectUri,
     postLogoutRedirectUri: redirectUri,
     navigateToLoginRequestUrl: true,
