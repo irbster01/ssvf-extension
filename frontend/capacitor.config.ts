@@ -14,6 +14,10 @@ const config: CapacitorConfig = {
     allowsLinkPreview: false,
   },
   server: {
+    // Use http scheme so the app runs at http://localhost
+    // This is required because Azure AD only accepts https:// or http://localhost
+    // as SPA redirect URIs (not capacitor://)
+    iosScheme: 'http',
     // Allow navigation to Microsoft login pages within the WKWebView
     allowNavigation: [
       'login.microsoftonline.com',

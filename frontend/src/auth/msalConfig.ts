@@ -1,15 +1,11 @@
 import { Configuration, LogLevel } from '@azure/msal-browser';
 
-// Detect if running inside Capacitor native app
-const isCapacitor = typeof window !== 'undefined' &&
-  (window.location.protocol === 'capacitor:' ||
-   window.location.hostname === 'localhost' && /Capacitor/i.test(navigator.userAgent));
-
-// In Capacitor, the origin is capacitor://localhost
-// On web/SWA, use the actual origin
-const redirectUri = isCapacitor
-  ? 'capacitor://localhost'
-  : window.location.origin;
+// Redirect URI is determined by window.location.origin:
+// - On SWA: https://wonderful-sand-00129870f.1.azurestaticapps.net
+// - On iOS (Capacitor with iosScheme:'http'): http://localhost
+// - Local dev: http://localhost:5173
+// All are registered as SPA redirect URIs in Azure AD.
+const redirectUri = window.location.origin;
 
 export const msalConfig: Configuration = {
   auth: {
