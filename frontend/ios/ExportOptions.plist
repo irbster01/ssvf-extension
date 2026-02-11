@@ -20,6 +20,6 @@
         <string>SSVF TFA App Store</string>
     </dict>
     <key>destination</key>
-    <string>upload</string>
+    <string>export</string>
 </dict>
 </plist>
