@@ -11,11 +11,8 @@ const config: CapacitorConfig = {
     allowsLinkPreview: false,
   },
   server: {
-    // Controls the WKWebView URL scheme.
-    // Default is "capacitor" → capacitor://localhost
-    // Set to "http" → http://localhost (accepted by Azure AD as SPA redirect URI)
-    iosScheme: 'http',
     // Allow navigation to Microsoft login pages within the WKWebView
+    // so auth redirect stays in-app (no Safari popup)
     allowNavigation: [
       'login.microsoftonline.com',
       'login.live.com',

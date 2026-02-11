@@ -1,11 +1,13 @@
 import { Configuration, LogLevel } from '@azure/msal-browser';
+import { Capacitor } from '@capacitor/core';
 
-// Redirect URI is determined by window.location.origin:
-// - On SWA: https://wonderful-sand-00129870f.1.azurestaticapps.net
-// - On iOS (Capacitor with iosScheme:'http'): http://localhost
-// - Local dev: http://localhost:5173
-// All are registered as SPA redirect URIs in Azure AD.
-const redirectUri = window.location.origin;
+// Redirect URI depends on platform:
+// - Capacitor iOS/Android: capacitor://localhost (registered as Mobile/Desktop app in Azure AD)
+// - SWA: https://wonderful-sand-00129870f.1.azurestaticapps.net (registered as SPA)
+// - Local dev: http://localhost:5173 (registered as SPA)
+const redirectUri = Capacitor.isNativePlatform()
+  ? 'capacitor://localhost'
+  : window.location.origin;
 
 export const msalConfig: Configuration = {
   auth: {
