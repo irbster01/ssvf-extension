@@ -13,3 +13,9 @@ api/local.settings.json
 # Build/deploy artifacts
 *.zip
 spa-config.json
+AuthKey_*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.key
+*.csr
