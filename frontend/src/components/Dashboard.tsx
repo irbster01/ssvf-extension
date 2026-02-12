@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMsal } from '@azure/msal-react';
+import { Capacitor } from '@capacitor/core';
 import { Submission, SubmissionStatus } from '../types';
 import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl } from '../api/submissions';
+import { nativeAuth } from '../auth/nativeAuth';
 import EditModal from './EditModal';
 import SubmitTFA from './SubmitTFA';
 
 const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'In Progress', 'Complete'];
+const isNative = Capacitor.isNativePlatform();
 
 function Dashboard() {
   const { instance, accounts } = useMsal();
@@ -15,7 +18,21 @@ function Dashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
 
+  const currentUsername = isNative ? (nativeAuth.getAccount()?.username || '') : (accounts[0]?.username || '');
+
   const getToken = useCallback(async (): Promise<string> => {
+    if (isNative) {
+      // Use native auth service
+      let token = nativeAuth.getAccessToken();
+      if (!token) {
+        // Try refresh
+        token = await nativeAuth.refreshAccessToken();
+      }
+      if (!token) throw new Error('Not authenticated');
+      return token;
+    }
+
+    // Web: use MSAL
     const account = accounts[0];
     if (!account) throw new Error('No account');
 
@@ -54,7 +71,7 @@ function Dashboard() {
       const token = await getToken();
       const updated = await updateSubmission(token, submission.id, submission.service_type, {
         status: newStatus,
-        updated_by: accounts[0]?.username,
+        updated_by: currentUsername,
         updated_at: new Date().toISOString(),
       });
       setSubmissions(prev => prev.map(s => s.id === submission.id ? { ...s, ...updated, status: newStatus } : s));
@@ -69,7 +86,7 @@ function Dashboard() {
       const token = await getToken();
       const updated = await updateSubmission(token, editingSubmission.id, editingSubmission.service_type, {
         ...updates,
-        updated_by: accounts[0]?.username,
+        updated_by: currentUsername,
         updated_at: new Date().toISOString(),
       });
       setSubmissions(prev => prev.map(s => s.id === editingSubmission.id ? { ...s, ...updated, ...updates } : s));

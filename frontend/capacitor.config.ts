@@ -11,20 +11,8 @@ const config: CapacitorConfig = {
     allowsLinkPreview: false,
   },
   server: {
-    // Allow navigation to ALL Microsoft auth/MFA domains within the WKWebView.
-    // MFA uses additional domains beyond login.microsoftonline.com (e.g.,
-    // msftauth.net for Authenticator prompts, msauth.net for MFA pages).
-    // If any domain is missing, WKWebView opens it externally and breaks the flow.
-    allowNavigation: [
-      '*.microsoftonline.com',     // AAD login, device login, etc.
-      '*.microsoftonline-p.com',   // AAD proxy/partner redirects
-      '*.msftauth.net',            // MFA / Authenticator prompts
-      '*.msauth.net',              // MFA auth pages
-      '*.microsoft.com',           // account pages, device auth
-      '*.live.com',                // Microsoft live auth
-      '*.windows.net',             // AAD endpoints
-      '*.microsoftazuread-sso.com', // SSO autologon
-    ],
+    // Auth now happens in system browser (SFSafariViewController),
+    // so we no longer need allowNavigation for Microsoft domains.
   },
   plugins: {
     // Route fetch/XHR through native HTTP layer — bypasses CORS restrictions
