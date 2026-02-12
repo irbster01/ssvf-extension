@@ -163,6 +163,7 @@ class NativeAuthService {
       client_id: CLIENT_ID,
       response_type: 'code',
       redirect_uri: REDIRECT_URI,
+      response_mode: 'query',
       scope: SCOPES.join(' '),
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
@@ -209,12 +210,9 @@ class NativeAuthService {
         return;
       }
 
-      // Close the browser
-      try {
-        await Browser.close();
-      } catch (e) {
-        console.log('[NativeAuth] Browser.close() error (ok):', e);
-      }
+      // Close the browser IMMEDIATELY to dismiss the SFSafariViewController
+      // before it shows a "Safari lost connection" error
+      Browser.close().catch(() => {});
 
       try {
         // Parse the URL for auth code
