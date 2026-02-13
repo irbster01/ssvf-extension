@@ -146,7 +146,7 @@ function Dashboard() {
     const token = await getToken();
     const result = await createNetSuitePO(token, {
       ...poData,
-      dryRun: true, // Safe mode — generates payload only, does NOT post to NetSuite
+      dryRun: false, // Live mode — sends PO to NetSuite sandbox
     });
     return result;
   };
@@ -359,7 +359,7 @@ function Dashboard() {
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="mobile-card-actions" style={{ display: 'flex', gap: '10px' }}>
                   <button
                     className="btn btn-primary mobile-card-edit"
                     onClick={() => setPoSubmission(submission)}

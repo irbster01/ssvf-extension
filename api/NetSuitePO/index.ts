@@ -123,7 +123,7 @@ app.http('NetSuitePO', {
       return { status: 400, headers: cors, jsonBody: { error: 'Invalid JSON body' } };
     }
 
-    const { vendorName, vendorAccount, clientId, clientName, region, programCategory, amount, memo, lineItems, dryRun } = body;
+    const { vendorName, vendorId, vendorAccount, clientId, clientName, region, programCategory, amount, memo, lineItems, dryRun, clientTypeId, financialAssistanceTypeId, assistanceMonthId } = body;
 
     if (!vendorName || !amount || !lineItems?.length) {
       return { status: 400, headers: cors, jsonBody: { error: 'vendorName, amount, and lineItems are required' } };
@@ -131,6 +131,7 @@ app.http('NetSuitePO', {
 
     const poInput: POInput = {
       vendorName,
+      vendorId: vendorId || undefined,
       vendorAccount: vendorAccount || '',
       clientId: clientId || '',
       clientName: clientName || '',
@@ -138,15 +139,20 @@ app.http('NetSuitePO', {
       programCategory: programCategory || '',
       amount,
       memo: memo || '',
+      clientTypeId: clientTypeId || undefined,
+      financialAssistanceTypeId: financialAssistanceTypeId || undefined,
+      assistanceMonthId: assistanceMonthId || undefined,
       lineItems,
     };
 
     // Default to dry run (safe mode) unless explicitly set to false
     const isDryRun = dryRun !== false;
 
-    context.log(`[NetSuite] PO request by ${auth.userId} | dryRun=${isDryRun} | vendor=${vendorName} | amount=${amount}`);
+    context.log(`[NetSuite] PO request by ${auth.userId} | dryRun=${isDryRun} | vendor=${vendorName} (id=${vendorId || 'none'}) | amount=${amount}`);
 
     const result = await createPurchaseOrder(poInput, isDryRun);
+
+    context.log(`[NetSuite] PO result: success=${result.success} | message=${result.message}${result.response ? ' | response=' + JSON.stringify(result.response).substring(0, 500) : ''}`);
 
     return {
       status: result.success ? 200 : 502,

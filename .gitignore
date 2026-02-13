@@ -22,8 +22,15 @@ AuthKey_*.p8
 *.pem
 *_base64.txt
 
-# Temporary NetSuite exploration scripts
+# Temporary NetSuite exploration/test scripts
 api/inspect-po.js
 api/list-netsuite-data.js
 api/list-vendors.js
+api/test-vendors.js
 api/po-schema-full.json
+
+# Azure deployment logs (downloaded from Kudu)
+api/app-logs/
+
+# Extension build artifacts & store assets
+extension/screenshot-*.png

@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { signIn, signOut, getCurrentAccount, silentTokenRefresh, getValidToken } from '../auth/authService';
 import { API_URL } from '../config';
+
+interface NetSuiteVendor {
+  id: string;
+  entityId: string;
+  companyName: string;
+}
 
 interface CaptureLog {
   timestamp: string;
@@ -96,6 +102,24 @@ export const PopupApp: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [captureEnabled, setCaptureEnabled] = useState(false);
 
+  // Vendor autocomplete state
+  const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [selectedVendor, setSelectedVendor] = useState<NetSuiteVendor | null>(null);
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const vendorDropdownRef = useRef<HTMLDivElement>(null);
+  const vendorInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter vendors based on search text
+  const filteredVendors = vendorSearch.length >= 1
+    ? vendors.filter(v =>
+        v.companyName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+        v.entityId.toLowerCase().includes(vendorSearch.toLowerCase())
+      ).slice(0, 30)
+    : [];
+
   useEffect(() => {
     const checkAuthentication = async () => {
       try {
@@ -143,6 +167,73 @@ export const PopupApp: React.FC = () => {
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, []);
+
+  // Fetch NetSuite vendors when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const fetchVendors = async () => {
+      setVendorsLoading(true);
+      try {
+        const token = await getValidToken();
+        if (!token) return;
+        const vendorsUrl = API_URL.replace('/captures', '/netsuite/vendors');
+        const response = await fetch(vendorsUrl, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setVendors(data.vendors || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch vendors:', err);
+      } finally {
+        setVendorsLoading(false);
+      }
+    };
+    fetchVendors();
+  }, [isAuthenticated]);
+
+  // Close vendor dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(e.target as Node)) {
+        setShowVendorDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleVendorSelect = (vendor: NetSuiteVendor) => {
+    setSelectedVendor(vendor);
+    setVendorSearch(vendor.companyName);
+    setManualForm(prev => ({ ...prev, vendor: vendor.companyName }));
+    setShowVendorDropdown(false);
+    setHighlightIndex(-1);
+  };
+
+  const clearVendor = () => {
+    setSelectedVendor(null);
+    setVendorSearch('');
+    setManualForm(prev => ({ ...prev, vendor: '' }));
+    vendorInputRef.current?.focus();
+  };
+
+  const handleVendorKeyDown = (e: React.KeyboardEvent) => {
+    if (!showVendorDropdown || filteredVendors.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex(prev => Math.min(prev + 1, filteredVendors.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter' && highlightIndex >= 0) {
+      e.preventDefault();
+      handleVendorSelect(filteredVendors[highlightIndex]);
+    } else if (e.key === 'Escape') {
+      setShowVendorDropdown(false);
+    }
+  };
 
   const handleAuthenticate = async () => {
     setIsAuthenticating(true);
@@ -198,6 +289,7 @@ export const PopupApp: React.FC = () => {
           client_id: manualForm.clientId,
           client_name: manualForm.clientName,
           vendor: manualForm.vendor,
+          vendor_id: selectedVendor?.id || undefined,
           service_cost_amount: manualForm.amount,
           region: manualForm.region,
           program_category: manualForm.programCategory,
@@ -278,6 +370,8 @@ export const PopupApp: React.FC = () => {
         setSubmitMessage({ type: 'success', text: 'TFA submitted successfully!' });
         setManualForm({ clientId: '', clientName: '', vendor: '', amount: '', region: 'Shreveport', programCategory: 'Homeless Prevention', assistanceType: 'Rental Assistance', notes: '' });
         setSelectedFiles([]);
+        setSelectedVendor(null);
+        setVendorSearch('');
         
         // Update local stats
         const newStats = { ...stats };
@@ -823,15 +917,111 @@ export const PopupApp: React.FC = () => {
                 </select>
               </div>
 
-              <div style={{ marginBottom: '12px' }}>
-                <label style={styles.label}>Vendor</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Electric Company"
-                  value={manualForm.vendor}
-                  onChange={(e) => setManualForm({ ...manualForm, vendor: e.target.value })}
-                  style={styles.input}
-                />
+              <div style={{ marginBottom: '12px', position: 'relative' }} ref={vendorDropdownRef}>
+                <label style={styles.label}>Vendor *</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    ref={vendorInputRef}
+                    type="text"
+                    placeholder={vendorsLoading ? 'Loading vendors...' : 'Type to search vendors...'}
+                    value={vendorSearch}
+                    onChange={(e) => {
+                      setVendorSearch(e.target.value);
+                      setSelectedVendor(null);
+                      setManualForm(prev => ({ ...prev, vendor: e.target.value }));
+                      setShowVendorDropdown(true);
+                      setHighlightIndex(-1);
+                    }}
+                    onFocus={() => vendorSearch.length >= 1 && setShowVendorDropdown(true)}
+                    onKeyDown={handleVendorKeyDown}
+                    disabled={vendorsLoading}
+                    autoComplete="off"
+                    style={styles.input}
+                    required
+                  />
+                  {selectedVendor && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 8px',
+                      backgroundColor: '#eef2ff',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      color: '#667eea',
+                      fontWeight: 600,
+                      marginTop: '-6px',
+                      marginBottom: '4px',
+                    }}>
+                      <span>NS #{selectedVendor.id}</span>
+                      <button
+                        type="button"
+                        onClick={clearVendor}
+                        style={{ background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}
+                        aria-label="Clear vendor"
+                      >×</button>
+                    </div>
+                  )}
+                </div>
+                {showVendorDropdown && !selectedVendor && filteredVendors.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    zIndex: 100,
+                  }}>
+                    {filteredVendors.map((v, idx) => (
+                      <div
+                        key={v.id}
+                        onClick={() => handleVendorSelect(v)}
+                        onMouseEnter={() => setHighlightIndex(idx)}
+                        style={{
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          backgroundColor: idx === highlightIndex ? '#eef2ff' : 'white',
+                          borderBottom: idx < filteredVendors.length - 1 ? '1px solid #f3f4f6' : 'none',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <span style={{ color: '#374151', fontWeight: 500 }}>{v.companyName}</span>
+                        <span style={{ color: '#9ca3af', fontSize: '10px' }}>#{v.entityId}</span>
+                      </div>
+                    ))}
+                    {filteredVendors.length === 30 && (
+                      <div style={{ padding: '6px 12px', fontSize: '10px', color: '#9ca3af', textAlign: 'center', borderTop: '1px solid #f3f4f6' }}>
+                        Type more to narrow results...
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showVendorDropdown && !selectedVendor && vendorSearch.length >= 1 && filteredVendors.length === 0 && !vendorsLoading && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    color: '#9ca3af',
+                    zIndex: 100,
+                  }}>
+                    No vendors match "{vendorSearch}"
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: '12px' }}>

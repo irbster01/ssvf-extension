@@ -28,14 +28,122 @@ export interface PurchaseOrderData {
   programCategory: string;
   amount: number;
   memo: string;
+  clientTypeId?: string;
+  financialAssistanceTypeId?: string;
+  assistanceMonthId?: string;
   lineItems: POLineItem[];
 }
 
 export interface POLineItem {
+  itemId: string;
+  departmentId: string;
+  classId: string;
   description: string;
   quantity: number;
   rate: number;
   amount: number;
+}
+
+// NetSuite departments relevant to SSVF
+const NETSUITE_DEPARTMENTS = [
+  { id: '7', name: '3031 SSVF' },
+  { id: '617', name: '3035 SSVF - ARKANSAS' },
+  { id: '618', name: '3036 SSVF - MONROE' },
+] as const;
+
+// NetSuite "Sites" (classification) values
+const NETSUITE_SITES = [
+  { id: '1', name: '000 N/A' },
+  { id: '18', name: '081 Bossier' },
+  { id: '19', name: '083 Travis' },
+  { id: '8', name: '011 Broadmoor' },
+  { id: '7', name: '009 Creswell' },
+  { id: '5', name: '007 Fair Park' },
+  { id: '17', name: '021 Midway' },
+  { id: '6', name: '008 Oak Park' },
+  { id: '16', name: '019 Queensborough' },
+  { id: '15', name: '018 Sunset Acres' },
+  { id: '9', name: '012 Westwood' },
+  { id: '10', name: '013 Woodlawn' },
+] as const;
+
+// NetSuite "Client:" items available for TFA PO line items
+const NETSUITE_ITEMS = [
+  { id: '226', name: 'Client:  Cash Subsidy' },
+  { id: '227', name: 'Client:  Incentives' },
+  { id: '228', name: 'Client:  Moving' },
+  { id: '267', name: 'Client:  Room & Board' },
+  { id: '231', name: 'Client: Clothing & Personal Needs' },
+  { id: '640', name: 'Client: Linen & Bedding' },
+  { id: '229', name: 'Client: Transportation' },
+  { id: '230', name: 'Client: Utilities' },
+] as const;
+
+// Auto-map assistance type keywords to NetSuite item IDs
+function guessItemId(assistanceType: string): string {
+  const lower = (assistanceType || '').toLowerCase();
+  if (lower.includes('rent') || lower.includes('housing')) return '267'; // Room & Board
+  if (lower.includes('util')) return '230'; // Utilities
+  if (lower.includes('moving') || lower.includes('relocation')) return '228'; // Moving
+  if (lower.includes('transport')) return '229'; // Transportation
+  if (lower.includes('cloth') || lower.includes('personal')) return '231'; // Clothing & Personal
+  if (lower.includes('linen') || lower.includes('bedding')) return '640'; // Linen & Bedding
+  if (lower.includes('incentive')) return '227'; // Incentives
+  return '226'; // Default: Cash Subsidy
+}
+
+// NetSuite Client Type list (custbody8)
+const CLIENT_TYPES = [
+  { id: '1', name: 'Rapid Rehousing' },
+  { id: '2', name: 'Homeless Prevention' },
+  { id: '3', name: 'Shallow Subsidy' },
+] as const;
+
+// NetSuite Financial Assistance Type list (custbody11)
+const FINANCIAL_ASSISTANCE_TYPES = [
+  { id: '1', name: 'Rental Assistance' },
+  { id: '5', name: 'Moving Cost Assistance' },
+  { id: '4', name: 'Utility Deposit' },
+  { id: '3', name: 'Security Deposit' },
+  { id: '9', name: 'Other as approved by VA' },
+  { id: '2', name: 'Utility Assistance' },
+  { id: '10', name: 'Motel/Hotel Voucher' },
+  { id: '6', name: 'Purchase of emergency supplies' },
+  { id: '7', name: 'Transportation' },
+  { id: '8', name: 'Child Care' },
+] as const;
+
+// Auto-map program_category to Client Type ID
+function guessClientTypeId(programCategory: string): string {
+  const lower = (programCategory || '').toLowerCase();
+  if (lower.includes('rapid')) return '1';
+  if (lower.includes('prevention')) return '2';
+  if (lower.includes('shallow')) return '3';
+  return '';
+}
+
+// Auto-map assistance type text to Financial Assistance Type ID
+function guessFinancialAssistanceTypeId(assistanceType: string): string {
+  const lower = (assistanceType || '').toLowerCase();
+  if (lower.includes('rental') || lower === 'rent') return '1';
+  if (lower.includes('moving')) return '5';
+  if (lower.includes('utility deposit')) return '4';
+  if (lower.includes('security deposit') || lower.includes('security')) return '3';
+  if (lower.includes('utility') && !lower.includes('deposit')) return '2';
+  if (lower.includes('motel') || lower.includes('hotel') || lower.includes('voucher')) return '10';
+  if (lower.includes('emergency') || lower.includes('supplies')) return '6';
+  if (lower.includes('transport')) return '7';
+  if (lower.includes('child') || lower.includes('care')) return '8';
+  if (lower.includes('other') || lower.includes('va')) return '9';
+  return '';
+}
+
+// Get the month ID (1-12) from a date string
+function getAssistanceMonthId(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return String(d.getMonth() + 1); // 1=January … 12=December
 }
 
 function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO }: PurchaseOrderModalProps) {
@@ -51,6 +159,31 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-inherit vendor from submission when vendors list loads
+  useEffect(() => {
+    if (vendors.length > 0 && !selectedVendor) {
+      // Try matching by vendor_id first (most reliable)
+      if (submission.vendor_id) {
+        const match = vendors.find(v => v.id === submission.vendor_id);
+        if (match) {
+          setSelectedVendor(match);
+          setVendorSearch(match.companyName);
+          return;
+        }
+      }
+      // Fallback: match by vendor name
+      if (submission.vendor) {
+        const match = vendors.find(v =>
+          v.companyName.toLowerCase() === submission.vendor!.toLowerCase()
+        );
+        if (match) {
+          setSelectedVendor(match);
+          setVendorSearch(match.companyName);
+        }
+      }
+    }
+  }, [vendors, submission.vendor_id, submission.vendor]);
 
   // Filter vendors based on search text
   const filteredVendors = vendorSearch.length >= 1
@@ -94,9 +227,20 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
     }
   };
 
+  const assistanceType = submission.form_data?.assistance_type as string || submission.service_type || 'TFA Service';
+  const [selectedItemId, setSelectedItemId] = useState(() => guessItemId(assistanceType));
+  const [selectedDeptId, setSelectedDeptId] = useState('7'); // Default: 3031 SSVF
+  const [selectedSiteId, setSelectedSiteId] = useState('1'); // Default: 000 N/A
+  const [selectedClientTypeId, setSelectedClientTypeId] = useState(() => guessClientTypeId(submission.program_category || ''));
+  const [selectedFATypeId, setSelectedFATypeId] = useState(() => guessFinancialAssistanceTypeId(assistanceType));
+  const [selectedMonthId, setSelectedMonthId] = useState(() => getAssistanceMonthId(submission.captured_at_utc));
+
   const lineItems: POLineItem[] = [
     {
-      description: submission.form_data?.assistance_type as string || submission.service_type || 'TFA Service',
+      itemId: selectedItemId,
+      departmentId: selectedDeptId,
+      classId: selectedSiteId,
+      description: assistanceType,
       quantity: 1,
       rate: submission.service_amount || 0,
       amount: submission.service_amount || 0,
@@ -123,6 +267,9 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
         programCategory: submission.program_category || '',
         amount: submission.service_amount || 0,
         memo,
+        clientTypeId: selectedClientTypeId || undefined,
+        financialAssistanceTypeId: selectedFATypeId || undefined,
+        assistanceMonthId: selectedMonthId || undefined,
         lineItems,
       };
       const apiResult = await onSubmitPO(poData);
@@ -273,11 +420,90 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
               <span className="po-info-value">{submission.program_category || '—'}</span>
             </div>
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label>Client Type</label>
+              <select
+                value={selectedClientTypeId}
+                onChange={e => setSelectedClientTypeId(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+              >
+                <option value="">— Select —</option>
+                {CLIENT_TYPES.map(ct => (
+                  <option key={ct.id} value={ct.id}>{ct.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label>Financial Assistance Type</label>
+              <select
+                value={selectedFATypeId}
+                onChange={e => setSelectedFATypeId(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+              >
+                <option value="">— Select —</option>
+                {FINANCIAL_ASSISTANCE_TYPES.map(fa => (
+                  <option key={fa.id} value={fa.id}>{fa.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="form-group" style={{ marginTop: '12px' }}>
+            <label>Assistance Month</label>
+            <select
+              value={selectedMonthId}
+              onChange={e => setSelectedMonthId(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+            >
+              <option value="">— Select —</option>
+              {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                <option key={i+1} value={String(i+1)}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Line Items */}
         <div className="po-section">
           <h3 className="po-section-title">Line Items</h3>
+          <div className="form-group" style={{ marginBottom: '12px' }}>
+            <label>NetSuite Item Category</label>
+            <select
+              value={selectedItemId}
+              onChange={e => setSelectedItemId(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+            >
+              {NETSUITE_ITEMS.map(it => (
+                <option key={it.id} value={it.id}>{it.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label>Department</label>
+              <select
+                value={selectedDeptId}
+                onChange={e => setSelectedDeptId(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+              >
+                {NETSUITE_DEPARTMENTS.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label>Sites</label>
+              <select
+                value={selectedSiteId}
+                onChange={e => setSelectedSiteId(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+              >
+                {NETSUITE_SITES.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <table className="po-line-table">
             <thead>
               <tr>

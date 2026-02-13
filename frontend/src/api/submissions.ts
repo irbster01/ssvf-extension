@@ -173,6 +173,7 @@ export async function fetchNetSuiteVendors(token: string): Promise<NetSuiteVendo
 export interface PurchaseOrderInput {
   submissionId: string;
   vendorName: string;
+  vendorId?: string;
   vendorAccount: string;
   clientId: string;
   clientName: string;
@@ -180,7 +181,13 @@ export interface PurchaseOrderInput {
   programCategory: string;
   amount: number;
   memo: string;
+  clientTypeId?: string;
+  financialAssistanceTypeId?: string;
+  assistanceMonthId?: string;
   lineItems: Array<{
+    itemId: string;
+    departmentId: string;
+    classId: string;
     description: string;
     quantity: number;
     rate: number;

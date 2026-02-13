@@ -165,7 +165,7 @@ export async function netsuiteRequest(
   method: string,
   path: string,
   body?: any,
-): Promise<{ status: number; data: any }> {
+): Promise<{ status: number; data: any; location?: string }> {
   const config = getConfig();
   const baseUrl = getBaseUrl(config.accountId);
   const url = `${baseUrl}${path}`;
@@ -198,7 +198,10 @@ export async function netsuiteRequest(
     data = await response.text();
   }
 
-  return { status: response.status, data };
+  // Capture Location header (NetSuite returns new record URL on 204 Created)
+  const location = response.headers.get('location') || undefined;
+
+  return { status: response.status, data, location };
 }
 
 /**
@@ -323,6 +326,7 @@ export async function testConnection(): Promise<{ success: boolean; message: str
  */
 export interface POInput {
   vendorName: string;
+  vendorId?: string;
   vendorAccount: string;
   clientId: string;
   clientName: string;
@@ -330,7 +334,14 @@ export interface POInput {
   programCategory: string;
   amount: number;
   memo: string;
+  // Custom body fields for the SSVF PO form
+  clientTypeId?: string;              // custbody8: 1=Rapid Rehousing, 2=Homeless Prevention, 3=Shallow Subsidy
+  financialAssistanceTypeId?: string; // custbody11: 1-10 list values
+  assistanceMonthId?: string;         // custbody12: 1=January … 12=December
   lineItems: Array<{
+    itemId: string;
+    departmentId: string;
+    classId: string;
     description: string;
     quantity: number;
     rate: number;
@@ -340,22 +351,32 @@ export interface POInput {
 
 export function buildPurchaseOrderPayload(input: POInput) {
   return {
-    // The entity field typically takes the vendor internal ID.
-    // For now we pass the name — adjust once we map vendor IDs.
-    entity: { name: input.vendorName },
+    // Custom form: "VOANLA - SSVF Employee Purchase Request" (id 150)
+    customForm: { id: '150' },
+    // Use vendor internal ID when available (required for live PO creation)
+    entity: input.vendorId ? { id: input.vendorId } : { name: input.vendorName },
+    // Subsidiary: "Volunteers of America North Louisiana" (id 14)
+    subsidiary: { id: '14' },
     memo: `SSVF TFA - ${input.region} - ${input.programCategory} | Client: ${input.clientName} (${input.clientId})${input.memo ? ' | ' + input.memo : ''}`,
+    // Custom body fields for SSVF Employee Purchase Request form
+    custbody10: input.clientName || '',       // Client Name
+    custbody7: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID (LSNDC) - Integer field, displayed as "CLIENT ID" on SSVF form
+    custbody9: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID - Integer field (backup)
+    ...(input.clientTypeId ? { custbody8: { id: input.clientTypeId } } : {}),              // Client Type
+    ...(input.financialAssistanceTypeId ? { custbody11: { id: input.financialAssistanceTypeId } } : {}), // Financial Assistance Type
+    ...(input.assistanceMonthId ? { custbody12: { id: input.assistanceMonthId } } : {}),   // Assistance Month
+    custbody10_2: { id: '4' },                // Approval Routing Program: SSVF
     item: {
       items: input.lineItems.map(li => ({
-        // item field would normally take an internal ID.
-        // For initial testing we describe the line.
+        item: { id: li.itemId },
+        department: { id: li.departmentId },
+        class: { id: li.classId },
         description: li.description,
         quantity: li.quantity,
         rate: li.rate,
         amount: li.amount,
       })),
     },
-    // Custom fields or classification can be added here later
-    // e.g., subsidiary, department, class, location
   };
 }
 
@@ -380,18 +401,24 @@ export async function createPurchaseOrder(
     const result = await netsuiteRequest('POST', '/record/v1/purchaseOrder', payload);
 
     if (result.status === 204 || result.status === 200 || result.status === 201) {
+      // Extract PO internal ID from Location header (e.g. /record/v1/purchaseOrder/12345)
+      let poId: string | undefined;
+      if (result.location) {
+        const match = result.location.match(/\/purchaseOrder\/(\d+)/);
+        if (match) poId = match[1];
+      }
       return {
         success: true,
-        message: 'Purchase Order created in NetSuite!',
+        message: `Purchase Order created in NetSuite!${poId ? ` (ID: ${poId})` : ''}`,
         payload,
-        response: result.data,
+        response: { status: result.status, data: result.data, location: result.location, poId },
       };
     } else {
       return {
         success: false,
         message: `NetSuite returned ${result.status}`,
         payload,
-        response: result.data,
+        response: { status: result.status, data: result.data },
       };
     }
   } catch (err) {
