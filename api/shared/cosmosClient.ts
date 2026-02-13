@@ -165,6 +165,7 @@ export interface ServiceCapture {
   client_id?: string;       // Wellsky client ID - required for linking
   client_name?: string;
   vendor?: string;
+  vendor_id?: string;       // NetSuite internal vendor ID
   vendor_account?: string;
   service_amount?: number;
   // SSVF program fields

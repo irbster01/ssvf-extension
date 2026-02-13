@@ -104,6 +104,7 @@ export interface TFASubmission {
   clientId: string;
   clientName: string;
   vendor: string;
+  vendorId: string;        // NetSuite internal vendor ID
   amount: string;
   region: string;
   programCategory: string;
@@ -120,6 +121,7 @@ export async function submitCapture(token: string, tfa: TFASubmission): Promise<
       client_id: tfa.clientId,
       client_name: tfa.clientName,
       vendor: tfa.vendor,
+      vendor_id: tfa.vendorId || undefined,
       service_cost_amount: tfa.amount,
       region: tfa.region,
       program_category: tfa.programCategory,

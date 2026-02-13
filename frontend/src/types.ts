@@ -21,6 +21,7 @@ export interface Submission {
   client_id?: string;
   client_name?: string;
   vendor?: string;
+  vendor_id?: string;       // NetSuite internal vendor ID
   vendor_account?: string;
   service_amount?: number;
   // SSVF program fields

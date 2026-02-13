@@ -189,7 +189,7 @@ function Dashboard() {
     <>
       {error && <div className="error">{error}</div>}
 
-      <SubmitTFA getToken={getToken} onSubmitted={loadSubmissions} />
+      <SubmitTFA getToken={getToken} onSubmitted={loadSubmissions} vendors={vendors} vendorsLoading={vendorsLoading} />
 
       <div className="stats">
         <div className="stat-card new">

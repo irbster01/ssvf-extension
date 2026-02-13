@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { submitCapture, uploadAttachment, TFASubmission } from '../api/submissions';
+import { useState, useRef, useEffect } from 'react';
+import { submitCapture, uploadAttachment, TFASubmission, NetSuiteVendor } from '../api/submissions';
 
 const FINANCIAL_ASSISTANCE_TYPES = [
   'Rental Assistance',
@@ -16,12 +16,15 @@ const FINANCIAL_ASSISTANCE_TYPES = [
 interface SubmitTFAProps {
   getToken: () => Promise<string>;
   onSubmitted?: () => void;
+  vendors: NetSuiteVendor[];
+  vendorsLoading: boolean;
 }
 
 const emptyForm: TFASubmission = {
   clientId: '',
   clientName: '',
   vendor: '',
+  vendorId: '',
   amount: '',
   region: 'Shreveport',
   programCategory: 'Homeless Prevention',
@@ -29,12 +32,70 @@ const emptyForm: TFASubmission = {
   notes: '',
 };
 
-export default function SubmitTFA({ getToken, onSubmitted }: SubmitTFAProps) {
+export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoading }: SubmitTFAProps) {
   const [expanded, setExpanded] = useState(false);
   const [form, setForm] = useState<TFASubmission>({ ...emptyForm });
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Vendor autocomplete state
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [selectedVendor, setSelectedVendor] = useState<NetSuiteVendor | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const vendorInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter vendors based on search text
+  const filteredVendors = vendorSearch.length >= 1
+    ? vendors.filter(v =>
+        v.companyName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+        v.entityId.toLowerCase().includes(vendorSearch.toLowerCase())
+      ).slice(0, 50)
+    : [];
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleVendorSelect = (vendor: NetSuiteVendor) => {
+    setSelectedVendor(vendor);
+    setVendorSearch(vendor.companyName);
+    setForm(prev => ({ ...prev, vendor: vendor.companyName, vendorId: vendor.id }));
+    setShowDropdown(false);
+    setHighlightIndex(-1);
+  };
+
+  const clearVendor = () => {
+    setSelectedVendor(null);
+    setVendorSearch('');
+    setForm(prev => ({ ...prev, vendor: '', vendorId: '' }));
+    vendorInputRef.current?.focus();
+  };
+
+  const handleVendorKeyDown = (e: React.KeyboardEvent) => {
+    if (!showDropdown || filteredVendors.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex(prev => Math.min(prev + 1, filteredVendors.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter' && highlightIndex >= 0) {
+      e.preventDefault();
+      handleVendorSelect(filteredVendors[highlightIndex]);
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false);
+    }
+  };
 
   const set = (field: keyof TFASubmission, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -55,6 +116,8 @@ export default function SubmitTFA({ getToken, onSubmitted }: SubmitTFAProps) {
   const reset = () => {
     setForm({ ...emptyForm });
     setFiles([]);
+    setSelectedVendor(null);
+    setVendorSearch('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -181,13 +244,57 @@ export default function SubmitTFA({ getToken, onSubmitted }: SubmitTFAProps) {
 
         <div className="form-row">
           <div className="form-group">
-            <label>Vendor</label>
-            <input
-              type="text"
-              placeholder="e.g., Electric Company"
-              value={form.vendor}
-              onChange={e => set('vendor', e.target.value)}
-            />
+            <label>Vendor *</label>
+            <div className="vendor-autocomplete" ref={dropdownRef}>
+              <input
+                ref={vendorInputRef}
+                type="text"
+                className="vendor-search-input"
+                value={vendorSearch}
+                onChange={e => {
+                  setVendorSearch(e.target.value);
+                  setSelectedVendor(null);
+                  setForm(prev => ({ ...prev, vendor: e.target.value, vendorId: '' }));
+                  setShowDropdown(true);
+                  setHighlightIndex(-1);
+                }}
+                onFocus={() => vendorSearch.length >= 1 && setShowDropdown(true)}
+                onKeyDown={handleVendorKeyDown}
+                placeholder={vendorsLoading ? 'Loading vendors...' : 'Type to search vendors...'}
+                disabled={vendorsLoading}
+                autoComplete="off"
+                required
+              />
+              {selectedVendor && (
+                <div className="vendor-selected-badge">
+                  <span>NS #{selectedVendor.id}</span>
+                  <button type="button" onClick={clearVendor} aria-label="Clear vendor">×</button>
+                </div>
+              )}
+              {showDropdown && !selectedVendor && filteredVendors.length > 0 && (
+                <div className="vendor-dropdown">
+                  {filteredVendors.map((v, idx) => (
+                    <div
+                      key={v.id}
+                      className={`vendor-dropdown-item${idx === highlightIndex ? ' highlighted' : ''}`}
+                      onClick={() => handleVendorSelect(v)}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                    >
+                      <span className="vendor-dropdown-name">{v.companyName}</span>
+                      <span className="vendor-dropdown-id">#{v.entityId}</span>
+                    </div>
+                  ))}
+                  {filteredVendors.length === 50 && (
+                    <div className="vendor-dropdown-more">Type more to narrow results...</div>
+                  )}
+                </div>
+              )}
+              {showDropdown && !selectedVendor && vendorSearch.length >= 1 && filteredVendors.length === 0 && !vendorsLoading && (
+                <div className="vendor-dropdown">
+                  <div className="vendor-dropdown-empty">No vendors match "{vendorSearch}"</div>
+                </div>
+              )}
+            </div>
           </div>
           <div className="form-group">
             <label>Amount *</label>
