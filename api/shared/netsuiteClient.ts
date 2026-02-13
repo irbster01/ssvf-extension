@@ -204,10 +204,10 @@ export async function netsuiteRequest(
 /**
  * Run a SuiteQL query against NetSuite.
  */
-export async function suiteQL(query: string, limit = 1000): Promise<{ items: any[]; totalResults: number; hasMore: boolean }> {
+export async function suiteQL(query: string, limit = 1000, offset = 0): Promise<{ items: any[]; totalResults: number; hasMore: boolean }> {
   const config = getConfig();
   const baseUrl = getBaseUrl(config.accountId);
-  const url = `${baseUrl}/query/v1/suiteql?limit=${limit}`;
+  const url = `${baseUrl}/query/v1/suiteql?limit=${limit}&offset=${offset}`;
 
   const authHeader = generateOAuthHeaderForUrl('POST', url, config);
 
@@ -265,6 +265,7 @@ export async function getVendors(): Promise<NetSuiteVendor[]> {
     const result = await suiteQL(
       `SELECT id, entityId, companyName FROM vendor WHERE isInactive = 'F' ORDER BY companyName`,
       pageSize,
+      offset,
     );
     for (const v of result.items) {
       allVendors.push({
