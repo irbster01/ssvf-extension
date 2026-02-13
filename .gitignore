@@ -21,3 +21,9 @@ AuthKey_*.p8
 *.csr
 *.pem
 *_base64.txt
+
+# Temporary NetSuite exploration scripts
+api/inspect-po.js
+api/list-netsuite-data.js
+api/list-vendors.js
+api/po-schema-full.json

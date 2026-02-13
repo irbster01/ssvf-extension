@@ -4,7 +4,7 @@
 
 ## Overview
 
-The VOANLA TFA to SharePoint Chrome Extension ("Extension") is developed by Volunteers of America of Greater Los Angeles ("VOANLA", "we", "us", or "our"). This privacy policy explains how we collect, use, and protect information when you use our Extension.
+The VOANLA TFA to SharePoint Chrome Extension ("Extension") is developed by Volunteers of America of North Louisiana ("VOANLA", "we", "us", or "our"). This privacy policy explains how we collect, use, and protect information when you use our Extension.
 
 ## Information We Collect
 
@@ -71,9 +71,9 @@ We may update this privacy policy from time to time. We will notify users of any
 
 For questions about this privacy policy or the Extension:
 
-**Volunteers of America of Greater Los Angeles**
+**Volunteers of America of North Louisiana**
 Email: privacy@voanorthla.org
-Address: 3600 Wilshire Blvd #1200, Los Angeles, CA 90010
+Address: 360 Jordan Street, Shreveport, LA 71101
 
 ## Consent
 

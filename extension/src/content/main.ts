@@ -595,8 +595,25 @@ async function submitTFA(formData: Record<string, any>): Promise<boolean> {
 
 // ============ MAIN HANDLER ============
 async function handleSaveAndExit() {
-  console.log('[TFA Logger] Save & Exit clicked - capturing form data...');
-  
+  console.log('[TFA Logger] Save & Exit clicked - checking if capture is enabled...');
+
+  // Check if auto-capture is enabled (default: Off)
+  const enabled = await new Promise<boolean>((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['captureEnabled'], (result) => {
+        resolve(result.captureEnabled === true);
+      });
+    } else {
+      resolve(false);
+    }
+  });
+
+  if (!enabled) {
+    console.log('[TFA Logger] Auto-capture is OFF — skipping');
+    return;
+  }
+
+  console.log('[TFA Logger] Auto-capture is ON — capturing form data...');
   const formData = captureFormData();
   
   // Check if user is authenticated first

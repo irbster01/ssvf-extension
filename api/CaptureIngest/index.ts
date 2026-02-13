@@ -166,6 +166,8 @@ export async function CaptureIngest(
       vendor: formData.vendor as string | undefined,
       vendor_account: formData.vendor_client_account_number as string | undefined,
       service_amount: parseFloat(formData.service_cost_amount) || undefined,
+      region: formData.region as ServiceCapture['region'],
+      program_category: formData.program_category as ServiceCapture['program_category'],
     };
 
     // Build the capture document

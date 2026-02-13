@@ -6,5 +6,6 @@ import '../ExportCaptures/index';
 import '../ViewLogs/index';
 import '../GetSubmissions/index';
 import '../Attachments/index';
+import '../NetSuitePO/index';
 
 // The functions are registered via app.http() calls in their respective modules

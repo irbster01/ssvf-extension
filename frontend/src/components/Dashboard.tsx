@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { Capacitor } from '@capacitor/core';
 import { Submission, SubmissionStatus } from '../types';
-import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl } from '../api/submissions';
+import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor } from '../api/submissions';
 import { nativeAuth } from '../auth/nativeAuth';
 import EditModal from './EditModal';
+import PurchaseOrderModal, { PurchaseOrderData } from './PurchaseOrderModal';
 import SubmitTFA from './SubmitTFA';
 
 const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'In Progress', 'Complete'];
@@ -17,6 +18,9 @@ function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
+  const [poSubmission, setPoSubmission] = useState<Submission | null>(null);
+  const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(false);
 
   const currentUsername = isNative ? (nativeAuth.getAccount()?.username || '') : (accounts[0]?.username || '');
 
@@ -65,6 +69,23 @@ function Dashboard() {
   useEffect(() => {
     loadSubmissions();
   }, [loadSubmissions]);
+
+  // Fetch NetSuite vendor list once on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        setVendorsLoading(true);
+        const token = await getToken();
+        const v = await fetchNetSuiteVendors(token);
+        setVendors(v);
+      } catch {
+        // Non-critical — vendor autocomplete degrades gracefully
+        console.warn('Could not load NetSuite vendors');
+      } finally {
+        setVendorsLoading(false);
+      }
+    })();
+  }, [getToken]);
 
   const handleStatusChange = async (submission: Submission, newStatus: SubmissionStatus) => {
     try {
@@ -119,6 +140,19 @@ function Dashboard() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to download file');
     }
+  };
+
+  const handleCreatePO = async (poData: PurchaseOrderData) => {
+    const token = await getToken();
+    const result = await createNetSuitePO(token, {
+      ...poData,
+      dryRun: true, // Safe mode — generates payload only, does NOT post to NetSuite
+    });
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+    // On success, close the modal
+    setPoSubmission(null);
   };
 
   const filteredSubmissions = statusFilter === 'all'
@@ -259,7 +293,14 @@ function Dashboard() {
                     )}
                   </td>
                   <td>{submission.user_id}</td>
-                  <td>
+                  <td style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      className="btn btn-primary btn-small"
+                      onClick={() => setPoSubmission(submission)}
+                      aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
+                    >
+                      PO
+                    </button>
                     <button
                       className="btn btn-secondary btn-small"
                       onClick={() => setEditingSubmission(submission)}
@@ -322,13 +363,24 @@ function Dashboard() {
                     </div>
                   )}
                 </div>
-                <button
-                  className="btn btn-secondary mobile-card-edit"
-                  onClick={() => setEditingSubmission(submission)}
-                  aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
-                >
-                  Edit
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="btn btn-primary mobile-card-edit"
+                    onClick={() => setPoSubmission(submission)}
+                    aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
+                    style={{ flex: 1 }}
+                  >
+                    Create PO
+                  </button>
+                  <button
+                    className="btn btn-secondary mobile-card-edit"
+                    onClick={() => setEditingSubmission(submission)}
+                    aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
+                    style={{ flex: 1 }}
+                  >
+                    Edit
+                  </button>
+                </div>
               </article>
             ))
           )}
@@ -342,6 +394,16 @@ function Dashboard() {
           onClose={() => setEditingSubmission(null)}
           onUploadFile={handleUploadFile}
           onDownloadFile={handleDownloadFile}
+        />
+      )}
+
+      {poSubmission && (
+        <PurchaseOrderModal
+          submission={poSubmission}
+          vendors={vendors}
+          vendorsLoading={vendorsLoading}
+          onClose={() => setPoSubmission(null)}
+          onSubmitPO={handleCreatePO}
         />
       )}
     </>

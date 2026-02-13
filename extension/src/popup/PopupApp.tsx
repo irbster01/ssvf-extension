@@ -94,6 +94,7 @@ export const PopupApp: React.FC = () => {
   const [submissionsError, setSubmissionsError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [captureEnabled, setCaptureEnabled] = useState(false);
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -125,10 +126,12 @@ export const PopupApp: React.FC = () => {
     
     checkAuthentication();
 
-    chrome.storage.local.get(['captureStats'], (result) => {
+    chrome.storage.local.get(['captureStats', 'captureEnabled'], (result) => {
       if (result.captureStats) {
         setStats(result.captureStats);
       }
+      // Default to false (Off) if not set
+      setCaptureEnabled(result.captureEnabled === true);
     });
 
     const handleMessage = (message: any) => {
@@ -618,6 +621,58 @@ export const PopupApp: React.FC = () => {
         {/* Activity Tab */}
         {activeTab === 'activity' && (
           <>
+            {/* Auto-Capture Toggle */}
+            <div style={{
+              ...styles.card,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 16px',
+            }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>Auto-Capture</div>
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                  {captureEnabled ? 'TFA capture on Save & Exit is active' : 'TFA auto-capture is off'}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const newVal = !captureEnabled;
+                  setCaptureEnabled(newVal);
+                  chrome.storage.local.set({ captureEnabled: newVal });
+                }}
+                style={{
+                  position: 'relative',
+                  width: '44px',
+                  height: '24px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: captureEnabled
+                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                    : '#d1d5db',
+                  transition: 'background 0.3s',
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+                aria-label={captureEnabled ? 'Disable auto-capture' : 'Enable auto-capture'}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    left: captureEnabled ? '22px' : '2px',
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    background: 'white',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    transition: 'left 0.3s',
+                  }}
+                />
+              </button>
+            </div>
+
             <div style={styles.statGrid}>
               <div style={styles.statCard}>
                 <div style={styles.statValue('#667eea')}>{stats.totalCaptures}</div>

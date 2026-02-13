@@ -60,7 +60,7 @@ This extension is for VOANLA case managers working with the SSVF program who nee
 📧 SUPPORT
 For issues or questions, contact your IT department or email support@voanorthla.org
 
-Developed by Volunteers of America of Greater Los Angeles for internal use.
+Developed by Volunteers of America of North Louisiana for internal use.
 ```
 
 ---

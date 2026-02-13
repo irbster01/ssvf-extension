@@ -435,6 +435,185 @@ tr:hover {
   padding: 0 2px;
 }
 
+/* ========== Purchase Order Modal ========== */
+.po-modal {
+  max-width: 560px;
+}
+
+.po-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.po-section {
+  margin-bottom: 16px;
+}
+
+.po-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.po-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: #f9fafb;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.po-info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.po-info-label {
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 500;
+}
+
+.po-info-value {
+  font-size: 0.95rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.po-line-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.po-line-table th {
+  background: #f5f5f5;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.po-line-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.po-line-table tfoot td {
+  border-top: 2px solid #ddd;
+  border-bottom: none;
+  padding-top: 12px;
+}
+
+/* ========== Vendor Autocomplete ========== */
+.vendor-autocomplete {
+  position: relative;
+}
+
+.vendor-search-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.vendor-search-input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.vendor-search-input:disabled {
+  background: #f5f5f5;
+  color: #999;
+}
+
+.vendor-selected-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: #e8f4fd;
+  border: 1px solid #b3d9f2;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #0066cc;
+}
+
+.vendor-selected-badge button {
+  background: none;
+  border: none;
+  color: #0066cc;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.vendor-selected-badge button:hover {
+  color: #cc0000;
+}
+
+.vendor-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.vendor-dropdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.vendor-dropdown-item:hover,
+.vendor-dropdown-item.highlighted {
+  background: #f0f7ff;
+}
+
+.vendor-dropdown-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.vendor-dropdown-id {
+  font-size: 0.75rem;
+  color: #999;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.vendor-dropdown-more,
+.vendor-dropdown-empty {
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  color: #999;
+  text-align: center;
+  font-style: italic;
+}
+
 /* ========== Mobile Cards (hidden on desktop) ========== */
 .mobile-cards {
   display: none;

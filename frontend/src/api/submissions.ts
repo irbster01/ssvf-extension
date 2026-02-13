@@ -144,3 +144,71 @@ export async function submitCapture(token: string, tfa: TFASubmission): Promise<
 
   return response.json();
 }
+
+// ============ NetSuite Integration ============
+
+export interface NetSuiteVendor {
+  id: string;
+  entityId: string;
+  companyName: string;
+}
+
+export async function fetchNetSuiteVendors(token: string): Promise<NetSuiteVendor[]> {
+  const response = await fetch(`${API_BASE}/netsuite/vendors`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch vendors: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.vendors || [];
+}
+
+export interface PurchaseOrderInput {
+  submissionId: string;
+  vendorName: string;
+  vendorAccount: string;
+  clientId: string;
+  clientName: string;
+  region: string;
+  programCategory: string;
+  amount: number;
+  memo: string;
+  lineItems: Array<{
+    description: string;
+    quantity: number;
+    rate: number;
+    amount: number;
+  }>;
+  dryRun?: boolean;
+}
+
+export async function testNetSuiteConnection(token: string): Promise<{ success: boolean; message: string; details?: any }> {
+  const response = await fetch(`${API_BASE}/netsuite/test`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return response.json();
+}
+
+export async function createNetSuitePO(
+  token: string,
+  input: PurchaseOrderInput,
+): Promise<{ success: boolean; message: string; payload?: any; response?: any }> {
+  const response = await fetch(`${API_BASE}/netsuite/purchase-order`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  return response.json();
+}
