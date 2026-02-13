@@ -614,6 +614,66 @@ tr:hover {
   font-style: italic;
 }
 
+/* ========== PO Result Panel ========== */
+.po-result-panel {
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+.po-result-panel.success {
+  background: #e8f5e9;
+  border: 1px solid #66bb6a;
+}
+.po-result-panel.error {
+  background: #fce4ec;
+  border: 1px solid #ef5350;
+}
+.po-result-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.po-result-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.po-result-icon.success { color: #2e7d32; }
+.po-result-icon.error { color: #c62828; }
+.po-result-text {
+  flex: 1;
+}
+.po-result-details {
+  margin-top: 10px;
+}
+.po-payload-toggle {
+  background: none;
+  border: none;
+  color: #0066cc;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  text-decoration: underline;
+}
+.po-payload-toggle:hover {
+  color: #004499;
+}
+.po-payload-json {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #263238;
+  color: #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ========== Mobile Cards (hidden on desktop) ========== */
 .mobile-cards {
   display: none;

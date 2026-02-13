@@ -1,0 +1,9 @@
+<step title="Incoming Request" date="2026-02-05T18:33:51.117" instance="29063b" url="/api/logstream/application" method="GET" type="request" pid="7540,2,9" Authorization="Bea..." Host="ssvf-capture-api.scm.azurewebsites.net" User-Agent="functions-core-tools/4.2.2" X-ARR-LOG-ID="e658a84c-dab1-43f8-aca0-f469fe052130" CLIENT-IP="172.59.248.89:38451" X-SITE-DEPLOYMENT-ID="ssvf-capture-api" WAS-DEFAULT-HOSTNAME="ssvf-capture-api.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/logstream/application" >
+  <step title="Cleanup Xml Logs" date="2026-02-05T18:33:51.132" /><!-- duration: 31ms -->
+  <step title="LogStreamHandler.BeginProcessRequest" date="2026-02-05T18:33:51.195" >
+    <step title="LockFile &apos;C:\home\site\locks\hooks.lock&apos; acquired" date="2026-02-05T18:33:51.398" /><!-- duration: 16ms -->
+    <step title="LockFile &apos;C:\home\site\locks\hooks.lock&apos; released" date="2026-02-05T18:33:51.585" /><!-- duration: 16ms -->
+  </step><!-- duration: 453ms -->
+  <step title="LogStreamHandler.EndProcessRequest" date="2026-02-05T18:37:51.329" /><!-- duration: 16ms -->
+  <step title="Outgoing response" date="2026-02-05T18:37:51.360" type="response" statusCode="200" statusText="OK" Server="Microsoft-IIS/10.0" Cache-Control="private" X-AspNet-Version="4.0.30319" Content-Type="text/plain; charset=utf-8" /><!-- duration: 16ms -->
+</step><!-- duration: 240275ms -->

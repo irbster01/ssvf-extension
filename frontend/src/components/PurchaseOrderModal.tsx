@@ -2,12 +2,19 @@ import { useState, useRef, useEffect } from 'react';
 import { Submission } from '../types';
 import { NetSuiteVendor } from '../api/submissions';
 
+export interface POResult {
+  success: boolean;
+  message: string;
+  payload?: any;
+  response?: any;
+}
+
 interface PurchaseOrderModalProps {
   submission: Submission;
   vendors: NetSuiteVendor[];
   vendorsLoading: boolean;
   onClose: () => void;
-  onSubmitPO: (poData: PurchaseOrderData) => Promise<void>;
+  onSubmitPO: (poData: PurchaseOrderData) => Promise<POResult>;
 }
 
 export interface PurchaseOrderData {
@@ -34,7 +41,8 @@ export interface POLineItem {
 function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO }: PurchaseOrderModalProps) {
   const [memo, setMemo] = useState(submission.notes || '');
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [result, setResult] = useState<{ type: 'success' | 'error'; text: string; payload?: any; response?: any } | null>(null);
+  const [showPayload, setShowPayload] = useState(false);
 
   // Vendor autocomplete state
   const [vendorSearch, setVendorSearch] = useState(submission.vendor || '');
@@ -102,6 +110,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
     }
     setSending(true);
     setResult(null);
+    setShowPayload(false);
     try {
       const poData: PurchaseOrderData = {
         submissionId: submission.id,
@@ -116,8 +125,22 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
         memo,
         lineItems,
       };
-      await onSubmitPO(poData);
-      setResult({ type: 'success', text: 'Dry run complete — PO payload validated! Switch to live mode when ready.' });
+      const apiResult = await onSubmitPO(poData);
+      if (apiResult.success) {
+        setResult({
+          type: 'success',
+          text: apiResult.message,
+          payload: apiResult.payload,
+          response: apiResult.response,
+        });
+      } else {
+        setResult({
+          type: 'error',
+          text: apiResult.message,
+          payload: apiResult.payload,
+          response: apiResult.response,
+        });
+      }
     } catch (err) {
       setResult({ type: 'error', text: err instanceof Error ? err.message : 'Failed to create PO' });
     } finally {
@@ -139,7 +162,32 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
         </div>
 
         {result && (
-          <div className={`tfa-msg ${result.type}`}>{result.text}</div>
+          <div className={`po-result-panel ${result.type}`}>
+            <div className="po-result-header">
+              <span className={`po-result-icon ${result.type}`}>{result.type === 'success' ? '✓' : '✗'}</span>
+              <span className="po-result-text">{result.text}</span>
+            </div>
+            {result.payload && (
+              <div className="po-result-details">
+                <button
+                  type="button"
+                  className="po-payload-toggle"
+                  onClick={() => setShowPayload(!showPayload)}
+                >
+                  {showPayload ? '▾ Hide' : '▸ Show'} PO Payload
+                </button>
+                {showPayload && (
+                  <pre className="po-payload-json">{JSON.stringify(result.payload, null, 2)}</pre>
+                )}
+              </div>
+            )}
+            {result.response && (
+              <div className="po-result-details">
+                <strong>NetSuite Response:</strong>
+                <pre className="po-payload-json">{JSON.stringify(result.response, null, 2)}</pre>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Vendor Autocomplete */}
@@ -273,23 +321,36 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
 
         {/* Actions */}
         <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onClose}
-            disabled={sending}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleSubmit}
-            disabled={sending}
-            style={{ minWidth: '180px' }}
-          >
-            {sending ? 'Sending to NetSuite...' : 'Create Purchase Order'}
-          </button>
+          {result?.type === 'success' ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={onClose}
+              style={{ minWidth: '140px' }}
+            >
+              Done
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onClose}
+                disabled={sending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSubmit}
+                disabled={sending}
+                style={{ minWidth: '180px' }}
+              >
+                {sending ? 'Sending to NetSuite...' : 'Create Purchase Order'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

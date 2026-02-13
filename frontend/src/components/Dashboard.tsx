@@ -148,11 +148,7 @@ function Dashboard() {
       ...poData,
       dryRun: true, // Safe mode — generates payload only, does NOT post to NetSuite
     });
-    if (!result.success) {
-      throw new Error(result.message);
-    }
-    // On success, close the modal
-    setPoSubmission(null);
+    return result;
   };
 
   const filteredSubmissions = statusFilter === 'all'

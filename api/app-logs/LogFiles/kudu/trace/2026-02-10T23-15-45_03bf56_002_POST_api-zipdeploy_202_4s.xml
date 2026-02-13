@@ -1,0 +1,17 @@
+<step title="Incoming Request" date="2026-02-10T23:15:45.831" instance="03bf56" url="/api/zipdeploy?isAsync=true&amp;Deployer=az_cli_functions" method="POST" type="request" pid="2040,2,7" Cache-Control="no-cache" Connection="Keep-Alive" Content-Length="13802876" Content-Type="application/octet-stream" Accept="*/*" Accept-Encoding="gzip, deflate" Authorization="Bea..." Host="ssvf-capture-api.scm.azurewebsites.net" User-Agent="AZURECLI/2.82.0 (MSI)" x-ms-client-request-id="5fe0d26f-06d6-11f1-8bba-e86538bcce94" X-ARR-LOG-ID="5fe0d26f-06d6-11f1-8bba-e86538bcce94" CLIENT-IP="172.59.192.210:14797" X-SITE-DEPLOYMENT-ID="ssvf-capture-api" WAS-DEFAULT-HOSTNAME="ssvf-capture-api.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/zipdeploy?isAsync=true&amp;Deployer=az_cli_functions" X-MS-COLDSTART="1" >
+  <step title="ZipPushDeploy" date="2026-02-10T23:15:46.801" >
+    <step title="Functions App ZipDeploy. Run from package. Ignore remote build." date="2026-02-10T23:15:46.847" /><!-- duration: 16ms -->
+    <step title="Starting PushDeployAsync" date="2026-02-10T23:15:46.894" /><!-- duration: 31ms -->
+    <step title="Updating shutdown sentinel last write time" date="2026-02-10T23:15:47.130" SemaphoreCount="7" /><!-- duration: 16ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; acquired" date="2026-02-10T23:15:47.177" /><!-- duration: 16ms -->
+    <step title="Deleting outdated zip file C:\home\data\SitePackages\20260210155132.zip" date="2026-02-10T23:15:47.255" /><!-- duration: 47ms -->
+    <step title="Saving request content to C:\home\data\SitePackages\20260210231546.zip" date="2026-02-10T23:15:47.318" >
+      <step title="Total 13,802,876 bytes written to C:\home\data\SitePackages\20260210231546.zip" date="2026-02-10T23:15:48.146" /><!-- duration: 31ms -->
+    </step><!-- duration: 2178ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; released" date="2026-02-10T23:15:49.527" /><!-- duration: 16ms -->
+    <step title="Deleting shutdown sentinel file" date="2026-02-10T23:15:49.590" SemaphoreCount="8" /><!-- duration: 16ms -->
+    <step title="Starting FetchDeploy" date="2026-02-10T23:15:49.636" /><!-- duration: 16ms -->
+    <step title="Start deployment in the background" date="2026-02-10T23:15:49.683" /><!-- duration: 359ms -->
+  </step><!-- duration: 3273ms -->
+  <step title="Outgoing response" date="2026-02-10T23:15:50.136" type="response" statusCode="202" statusText="Accepted" Server="Microsoft-IIS/10.0" x-ms-request-id="5fe0d26f-06d6-11f1-8bba-e86538bcce94" Retry-After="30" Cache-Control="private" X-AspNet-Version="4.0.30319" Location="https://ssvf-capture-api.scm.azurewebsites.net/api/deployments/latest?deployer=az_cli_functions&amp;time=2026-02-10_23-15-50Z" /><!-- duration: 31ms -->
+</step><!-- duration: 4352ms -->

@@ -1,0 +1,37 @@
+<step title="BackgroundTrace" date="2026-02-09T18:46:03.207" instance="8ab297" url="synctriggers-operation" method="POST" >
+  <step title="Cleanup Xml Logs" date="2026-02-09T18:46:03.223" /><!-- duration: 31ms -->
+  <step title="Updating shutdown sentinel last write time" date="2026-02-09T18:46:03.285" SemaphoreCount="6" /><!-- duration: 16ms -->
+  <step title="Delaying &apos;00:01:00&apos; for Functions site to restart." date="2026-02-09T18:46:03.316" /><!-- duration: 31ms -->
+  <step title="Begin HttpPost https://ssvf-capture-api.azurewebsites.net/admin/host/synctriggers, x-ms-request-id: 64ba291d-de0c-4fcc-b375-816ed4d1bb71" date="2026-02-09T18:47:03.403" /><!-- duration: 31ms -->
+  <step title="End HttpPost, status: ServiceUnavailable" date="2026-02-09T18:47:03.591" /><!-- duration: 31ms -->
+  <step title="Begin HttpPost https://ssvf-capture-api.azurewebsites.net/admin/host/synctriggers, x-ms-request-id: 64ba291d-de0c-4fcc-b375-816ed4d1bb71" date="2026-02-09T18:47:04.653" /><!-- duration: 16ms -->
+  <step title="End HttpPost, status: ServiceUnavailable" date="2026-02-09T18:47:04.778" /><!-- duration: 16ms -->
+  <step title="Begin HttpPost https://ssvf-capture-api.azurewebsites.net/admin/host/synctriggers, x-ms-request-id: 64ba291d-de0c-4fcc-b375-816ed4d1bb71" date="2026-02-09T18:47:05.828" /><!-- duration: 16ms -->
+  <step title="End HttpPost, status: ServiceUnavailable" date="2026-02-09T18:47:05.937" /><!-- duration: 31ms -->
+  <step title="Syncing function triggers by calling the functions runtime site failed. System.Net.Http.HttpRequestException: Response status code does not indicate success: 503 (Service Unavailable).
+   at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at Kudu.Core.Helpers.PostDeploymentHelper.&lt;PostAsync&gt;d__49.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at Kudu.Core.Helpers.PostDeploymentHelper.&lt;&gt;c__DisplayClass38_0.&lt;&lt;TryFunctionsRuntimeSyncTriggers&gt;b__1&gt;d.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at Kudu.Core.Infrastructure.OperationManager.&lt;&gt;c__DisplayClass4_0.&lt;&lt;AttemptAsync&gt;b__0&gt;d.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at Kudu.Core.Infrastructure.OperationManager.&lt;AttemptAsync&gt;d__5`1.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at Kudu.Core.Helpers.PostDeploymentHelper.&lt;TryFunctionsRuntimeSyncTriggers&gt;d__38.MoveNext()" date="2026-02-09T18:47:06.031" /><!-- duration: 31ms -->
+  <step title="Attempting to perform settriggers call directly." date="2026-02-09T18:47:06.093" /><!-- duration: 31ms -->
+  <step title="Syncing httpTrigger of CaptureIngest" date="2026-02-09T18:47:06.187" /><!-- duration: 16ms -->
+  <step title="Skipping http of CaptureIngest" date="2026-02-09T18:47:06.234" /><!-- duration: 16ms -->
+  <step title="Begin HttpPost https://ssvf-capture-api.scm.azurewebsites.net/operations/settriggers, x-ms-request-id: 64ba291d-de0c-4fcc-b375-816ed4d1bb71" date="2026-02-09T18:47:06.281" /><!-- duration: 62ms -->
+  <step title="End HttpPost, status: OK" date="2026-02-09T18:47:06.531" /><!-- duration: 16ms -->
+  <step title="Syncing 1 function triggers with payload size 160 bytes successful." date="2026-02-09T18:47:06.593" /><!-- duration: 16ms -->
+  <step title="Deleting shutdown sentinel file" date="2026-02-09T18:47:06.625" SemaphoreCount="8" /><!-- duration: 31ms -->
+</step><!-- duration: 63465ms -->

@@ -1,0 +1,54 @@
+<step title="Incoming Request" date="2026-02-05T18:41:21.848" instance="29063b" url="/api/zipdeploy" method="POST" type="request" pid="7540,2,13" Content-Length="10521907" Content-Type="application/zip" Authorization="Bea..." Host="ssvf-capture-api.scm.azurewebsites.net" If-Match="*" User-Agent="functions-core-tools/4.2.2" X-ARR-LOG-ID="4e8fcd9e-d2bb-41d4-a710-4fd9aa6c0488" CLIENT-IP="73.91.167.4:57480" X-SITE-DEPLOYMENT-ID="ssvf-capture-api" WAS-DEFAULT-HOSTNAME="ssvf-capture-api.scm.azurewebsites.net" X-Forwarded-Proto="https" X-AppService-Proto="https" X-Forwarded-TlsVersion="1.3" X-WAWS-Unencoded-URL="/api/zipdeploy" >
+  <step title="Cleanup Xml Logs" date="2026-02-05T18:41:21.864" /><!-- duration: 47ms -->
+  <step title="ZipPushDeploy" date="2026-02-05T18:41:21.958" >
+    <step title="Functions App ZipDeploy. Run from package. Ignore remote build." date="2026-02-05T18:41:21.973" /><!-- duration: 16ms -->
+    <step title="Starting PushDeployAsync" date="2026-02-05T18:41:22.020" /><!-- duration: 16ms -->
+    <step title="Updating shutdown sentinel last write time" date="2026-02-05T18:41:22.114" SemaphoreCount="7" /><!-- duration: 16ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; acquired" date="2026-02-05T18:41:22.223" /><!-- duration: 16ms -->
+    <step title="Deleting outdated zip file C:\home\data\SitePackages\20260204234817.zip" date="2026-02-05T18:41:22.286" /><!-- duration: 31ms -->
+    <step title="Saving request content to C:\home\data\SitePackages\20260205184121.zip" date="2026-02-05T18:41:22.333" >
+      <step title="Total 10,521,907 bytes written to C:\home\data\SitePackages\20260205184121.zip" date="2026-02-05T18:41:23.255" /><!-- duration: 16ms -->
+    </step><!-- duration: 1688ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; released" date="2026-02-05T18:41:24.052" /><!-- duration: 16ms -->
+    <step title="Deleting shutdown sentinel file" date="2026-02-05T18:41:24.115" SemaphoreCount="8" /><!-- duration: 16ms -->
+    <step title="Starting FetchDeploy" date="2026-02-05T18:41:24.146" /><!-- duration: 31ms -->
+    <step title="Attempting to fetch target branch HEAD" date="2026-02-05T18:41:24.193" /><!-- duration: 31ms -->
+    <step title="Updating shutdown sentinel last write time" date="2026-02-05T18:41:24.274" SemaphoreCount="7" /><!-- duration: 14ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; acquired" date="2026-02-05T18:41:24.304" /><!-- duration: 16ms -->
+    <step title="Performing fetch based deployment" date="2026-02-05T18:41:24.351" >
+      <step title="Creating temporary deployment" date="2026-02-05T18:41:24.366" /><!-- duration: 172ms -->
+      <step title="Fetching changes." date="2026-02-05T18:41:24.741" /><!-- duration: 16ms -->
+      <step title="Starting LocalZipHandler" date="2026-02-05T18:41:24.804" /><!-- duration: 16ms -->
+      <step title="Starting ExtractTriggers" date="2026-02-05T18:41:24.851" /><!-- duration: 16ms -->
+      <step title="None repository commit" date="2026-02-05T18:41:25.804" >
+        <step title="Commit id: b6a624a468dd43b0a91bba412c418556" date="2026-02-05T18:41:25.835" Message="Created via a push deployment" AuthorName="N/A" AuthorEmail="N/A" /><!-- duration: 16ms -->
+      </step><!-- duration: 78ms -->
+      <step title="Before sending BuildRequestReceived status to /api/updatedeploystatus" date="2026-02-05T18:41:25.898" /><!-- duration: 16ms -->
+      <step title="DeploymentManager.Deploy(id:b6a624a468dd43b0a91bba412c418556)" date="2026-02-05T18:41:25.945" >
+        <step title="Collecting changeset information" date="2026-02-05T18:41:25.991" /><!-- duration: 172ms -->
+        <step title="Updating submodules" date="2026-02-05T18:41:26.179" >
+          <step title="Updating submodules." date="2026-02-05T18:41:26.351" /><!-- duration: 16ms -->
+        </step><!-- duration: 250ms -->
+        <step title="Preparing deployment for commit id &apos;b6a624a468&apos;." date="2026-02-05T18:41:26.616" /><!-- duration: 16ms -->
+        <step title="Determining deployment builder" date="2026-02-05T18:41:26.930" >
+          <step title="Builder is RunFromZipSiteBuilder" date="2026-02-05T18:41:26.961" /><!-- duration: 31ms -->
+        </step><!-- duration: 78ms -->
+        <step title="Copying SSH keys" date="2026-02-05T18:41:27.164" /><!-- duration: 31ms -->
+        <step title="Building" date="2026-02-05T18:41:27.211" >
+          <step title="Skipping build. Project type: Run-From-Zip" date="2026-02-05T18:41:27.383" /><!-- duration: 31ms -->
+          <step title="Skipping post build. Project type: Run-From-Zip" date="2026-02-05T18:41:27.617" /><!-- duration: 16ms -->
+          <step title="Triggering recycle (preview mode disabled)." date="2026-02-05T18:41:27.836" /><!-- duration: 16ms -->
+          <step title="Ignoring FS watcher based recycle request as this is a classic Windows app." date="2026-02-05T18:41:27.898" /><!-- duration: 31ms -->
+          <step title="Deployment successful. DEPLOYMENTINFO: deploymentPath = Functions App ZipDeploy. Run from package. Ignore remote build., deployer = ZipDeploy, os = windows, sku = Dynamic, language = node, siteName = ssvf-capture-api, slotName = Production, siteHostName = ssvf-capture-api.azurewebsites.net, deploymentStatus = Success" date="2026-02-05T18:41:28.243" /><!-- duration: 15ms -->
+        </step><!-- duration: 1641ms -->
+      </step><!-- duration: 2923ms -->
+      <step title="Cleaning up temp files" date="2026-02-05T18:41:28.898" /><!-- duration: 16ms -->
+      <step title="Updating C:\home\data\SitePackages\packagename.txt with deployment 20260205184121.zip" date="2026-02-05T18:41:28.945" /><!-- duration: 62ms -->
+      <step title="Begin HttpPost https://ssvf-capture-api.scm.azurewebsites.net/operations/settriggers, x-ms-request-id: 4e8fcd9e-d2bb-41d4-a710-4fd9aa6c0488" date="2026-02-05T18:41:29.133" /><!-- duration: 16ms -->
+      <step title="End HttpPost, status: OK" date="2026-02-05T18:41:29.461" /><!-- duration: 16ms -->
+      <step title="Scheduling background sync triggers after delay" date="2026-02-05T18:41:29.492" /><!-- duration: 31ms -->
+    </step><!-- duration: 5345ms -->
+    <step title="LockFile &apos;C:\home\site\locks\deployments.lock&apos; released" date="2026-02-05T18:41:29.742" /><!-- duration: 16ms -->
+  </step><!-- duration: 7831ms -->
+  <step title="Outgoing response" date="2026-02-05T18:41:29.820" type="response" statusCode="200" statusText="OK" Server="Microsoft-IIS/10.0" x-ms-request-id="4e8fcd9e-d2bb-41d4-a710-4fd9aa6c0488" Cache-Control="private" X-AspNet-Version="4.0.30319" /><!-- duration: 16ms -->
+</step><!-- duration: 8003ms -->
