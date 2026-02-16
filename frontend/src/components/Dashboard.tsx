@@ -359,6 +359,7 @@ function Dashboard() {
                       <button
                         className="btn btn-primary btn-small"
                         onClick={() => setPoSubmission(submission)}
+                        disabled={!!submission.po_number}
                         aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
                       >
                         PO
@@ -436,10 +437,11 @@ function Dashboard() {
                   <button
                     className="btn btn-primary mobile-card-edit"
                     onClick={() => setPoSubmission(submission)}
+                    disabled={!!submission.po_number}
                     aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
                     style={{ flex: 1 }}
                   >
-                    Create PO
+                    {submission.po_number ? 'PO Sent' : 'Create PO'}
                   </button>
                   <button
                     className="btn btn-secondary mobile-card-edit"
