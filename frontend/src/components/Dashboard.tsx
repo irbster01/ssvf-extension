@@ -37,6 +37,15 @@ function Dashboard() {
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
+    return id;
+  }, []);
+
+  const updateToast = useCallback((id: number, type: Toast['type'], message: string) => {
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, type, message } : t));
+    // Auto-dismiss after 5s from the update
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
   }, []);
 
   const currentUsername = isNative ? (nativeAuth.getAccount()?.username || '') : (accounts[0]?.username || '');
@@ -172,18 +181,32 @@ function Dashboard() {
   };
 
   const handleCreatePO = async (poData: PurchaseOrderData) => {
-    const token = await getToken();
-    const result = await createNetSuitePO(token, {
-      ...poData,
-      dryRun: false, // Live mode — sends PO to NetSuite sandbox
-    });
-    if (result.success) {
-      const poId = result.response?.poId;
-      addToast('success', poId ? `Created PO#${poId}` : 'Purchase Order created!');
-    } else {
-      addToast('error', result.message || 'Failed to create PO');
+    // Close modal immediately and show "sending" toast
+    const submissionId = poData.submissionId;
+    const serviceType = poSubmission?.service_type || '';
+    setPoSubmission(null);
+    const toastId = addToast('info', 'Sending PO to NetSuite…');
+
+    try {
+      const token = await getToken();
+      const result = await createNetSuitePO(token, {
+        ...poData,
+        dryRun: false,
+      });
+      if (result.success) {
+        const poId = result.response?.poId;
+        updateToast(toastId, 'success', poId ? `Created PO#${poId}` : 'Purchase Order created!');
+        if (poId) {
+          handlePOCreated(submissionId, poId, serviceType);
+        }
+      } else {
+        updateToast(toastId, 'error', result.message || 'Failed to create PO');
+      }
+      return result;
+    } catch (err) {
+      updateToast(toastId, 'error', err instanceof Error ? err.message : 'Failed to create PO');
+      return { success: false, message: 'Failed to create PO' };
     }
-    return result;
   };
 
   const handlePOCreated = useCallback(async (submissionId: string, poNumber: string, serviceType: string) => {
@@ -452,7 +475,6 @@ function Dashboard() {
           vendorsLoading={vendorsLoading}
           onClose={() => setPoSubmission(null)}
           onSubmitPO={handleCreatePO}
-          onPOCreated={handlePOCreated}
         />
       )}
 

@@ -2,20 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Submission } from '../types';
 import { NetSuiteVendor } from '../api/submissions';
 
-export interface POResult {
-  success: boolean;
-  message: string;
-  payload?: any;
-  response?: any;
-}
-
 interface PurchaseOrderModalProps {
   submission: Submission;
   vendors: NetSuiteVendor[];
   vendorsLoading: boolean;
   onClose: () => void;
-  onSubmitPO: (poData: PurchaseOrderData) => Promise<POResult>;
-  onPOCreated?: (submissionId: string, poNumber: string, serviceType: string) => void;
+  onSubmitPO: (poData: PurchaseOrderData) => void;
 }
 
 export interface PurchaseOrderData {
@@ -145,7 +137,7 @@ function getAssistanceMonthId(dateStr: string): string {
   return String(d.getMonth() + 1); // 1=January … 12=December
 }
 
-function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO, onPOCreated }: PurchaseOrderModalProps) {
+function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO }: PurchaseOrderModalProps) {
   const [memo, setMemo] = useState(submission.notes || '');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; text: string; payload?: any; response?: any } | null>(null);
@@ -271,29 +263,10 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
         assistanceMonthId: selectedMonthId || undefined,
         lineItems,
       };
-      const apiResult = await onSubmitPO(poData);
-      if (apiResult.success) {
-        // Extract PO ID from response and notify parent
-        const poId = apiResult.response?.poId;
-        if (poId && onPOCreated) {
-          // Fire and don't await — parent handles persistence
-          onPOCreated(submission.id, poId, submission.service_type);
-        }
-        // Close modal — toast handles the success message
-        setSending(false);
-        onClose();
-        return;
-      } else {
-        setResult({
-          type: 'error',
-          text: apiResult.message,
-          payload: apiResult.payload,
-          response: apiResult.response,
-        });
-      }
+      // Fire and forget — Dashboard handles the async work, toasts, and closing
+      onSubmitPO(poData);
     } catch (err) {
-      setResult({ type: 'error', text: err instanceof Error ? err.message : 'Failed to create PO' });
-    } finally {
+      setResult({ type: 'error', text: err instanceof Error ? err.message : 'Failed to build PO data' });
       setSending(false);
     }
   };
