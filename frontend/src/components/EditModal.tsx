@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Submission, SubmissionStatus, AttachmentMeta } from '../types';
+import { NetSuiteVendor } from '../api/submissions';
 
 interface EditModalProps {
   submission: Submission;
+  vendors: NetSuiteVendor[];
+  vendorsLoading: boolean;
   onSave: (updates: Partial<Submission>) => Promise<void>;
   onClose: () => void;
   onUploadFile: (file: File) => Promise<AttachmentMeta>;
@@ -19,11 +22,9 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function EditModal({ submission, onSave, onClose, onUploadFile, onDownloadFile }: EditModalProps) {
+function EditModal({ submission, vendors, vendorsLoading, onSave, onClose, onUploadFile, onDownloadFile }: EditModalProps) {
   const [clientId, setClientId] = useState(submission.client_id || '');
   const [clientName, setClientName] = useState(submission.client_name || '');
-  const [vendor, setVendor] = useState(submission.vendor || '');
-  const [vendorAccount, setVendorAccount] = useState(submission.vendor_account || '');
   const [serviceAmount, setServiceAmount] = useState(submission.service_amount?.toString() || '');
   const [region, setRegion] = useState(submission.region || '');
   const [programCategory, setProgramCategory] = useState(submission.program_category || '');
@@ -33,6 +34,60 @@ function EditModal({ submission, onSave, onClose, onUploadFile, onDownloadFile }
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentMeta[]>(submission.attachments || []);
 
+  // Vendor autocomplete state
+  const [vendorSearch, setVendorSearch] = useState(submission.vendor || '');
+  const [selectedVendor, setSelectedVendor] = useState<NetSuiteVendor | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-match vendor from submission when vendors list loads
+  useEffect(() => {
+    if (vendors.length > 0 && !selectedVendor) {
+      if (submission.vendor_id) {
+        const match = vendors.find(v => v.id === submission.vendor_id);
+        if (match) { setSelectedVendor(match); setVendorSearch(match.companyName); return; }
+      }
+      if (submission.vendor) {
+        const match = vendors.find(v => v.companyName.toLowerCase() === submission.vendor!.toLowerCase());
+        if (match) { setSelectedVendor(match); setVendorSearch(match.companyName); }
+      }
+    }
+  }, [vendors, submission.vendor_id, submission.vendor]);
+
+  const filteredVendors = vendorSearch.length >= 1
+    ? vendors.filter(v =>
+        v.companyName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+        v.entityId.toLowerCase().includes(vendorSearch.toLowerCase())
+      ).slice(0, 50)
+    : [];
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleVendorSelect = (vendor: NetSuiteVendor) => {
+    setSelectedVendor(vendor);
+    setVendorSearch(vendor.companyName);
+    setShowDropdown(false);
+    setHighlightIndex(-1);
+  };
+
+  const handleVendorKeyDown = (e: React.KeyboardEvent) => {
+    if (!showDropdown || filteredVendors.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIndex(prev => Math.min(prev + 1, filteredVendors.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIndex(prev => Math.max(prev - 1, 0)); }
+    else if (e.key === 'Enter' && highlightIndex >= 0) { e.preventDefault(); handleVendorSelect(filteredVendors[highlightIndex]); }
+    else if (e.key === 'Escape') { setShowDropdown(false); }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -40,8 +95,8 @@ function EditModal({ submission, onSave, onClose, onUploadFile, onDownloadFile }
       await onSave({
         client_id: clientId || undefined,
         client_name: clientName || undefined,
-        vendor: vendor || undefined,
-        vendor_account: vendorAccount || undefined,
+        vendor: selectedVendor?.companyName || vendorSearch || undefined,
+        vendor_id: selectedVendor?.id || undefined,
         service_amount: serviceAmount ? parseFloat(serviceAmount) : undefined,
         region: (region as any) || undefined,
         program_category: (programCategory as any) || undefined,
@@ -125,24 +180,52 @@ function EditModal({ submission, onSave, onClose, onUploadFile, onDownloadFile }
             </select>
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
             <label>Vendor</label>
-            <input
-              type="text"
-              value={vendor}
-              onChange={e => setVendor(e.target.value)}
-              placeholder="Vendor name"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Vendor Account #</label>
-            <input
-              type="text"
-              value={vendorAccount}
-              onChange={e => setVendorAccount(e.target.value)}
-              placeholder="Account number"
-            />
+            {selectedVendor ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '8px 12px', backgroundColor: '#e8f5e9',
+                borderRadius: '6px', border: '1px solid #a5d6a7',
+              }}>
+                <span style={{ flex: 1, fontWeight: 500 }}>{selectedVendor.companyName}</span>
+                <button type="button" onClick={() => { setSelectedVendor(null); setVendorSearch(''); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1em', color: '#666' }}>✕</button>
+              </div>
+            ) : (
+              <input
+                ref={inputRef}
+                type="text"
+                value={vendorSearch}
+                onChange={e => { setVendorSearch(e.target.value); setShowDropdown(true); setHighlightIndex(0); }}
+                onFocus={() => setShowDropdown(true)}
+                onKeyDown={handleVendorKeyDown}
+                placeholder={vendorsLoading ? 'Loading vendors…' : 'Search NetSuite vendors…'}
+                autoComplete="off"
+              />
+            )}
+            {showDropdown && !selectedVendor && vendorSearch.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000,
+                backgroundColor: '#fff', border: '1px solid #d1d5db', borderRadius: '6px',
+                maxHeight: '200px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              }}>
+                {filteredVendors.length === 0 ? (
+                  <div style={{ padding: '10px 14px', color: '#999', fontSize: '0.9em' }}>No matching vendors</div>
+                ) : (
+                  filteredVendors.map((v, idx) => (
+                    <div key={v.id}
+                      onClick={() => handleVendorSelect(v)}
+                      style={{
+                        padding: '8px 14px', cursor: 'pointer', fontSize: '0.9em',
+                        backgroundColor: idx === highlightIndex ? '#e3f2fd' : '#fff',
+                      }}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                    >{v.companyName}</div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           <div className="form-group">
@@ -158,11 +241,12 @@ function EditModal({ submission, onSave, onClose, onUploadFile, onDownloadFile }
 
           <div className="form-group">
             <label>Notes</label>
-            <input
-              type="text"
+            <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="Optional notes"
+              rows={3}
+              style={{ resize: 'vertical' }}
             />
           </div>
 

@@ -282,7 +282,7 @@ export interface POInput {
   amount: number;
   memo: string;
   // Custom body fields for the SSVF PO form
-  clientTypeId?: string;              // custbody8: 1=Rapid Rehousing, 2=Homeless Prevention, 3=Shallow Subsidy
+  clientTypeId?: string;              // custbody8: 1=Rapid Rehousing, 2=Homeless Prevention
   financialAssistanceTypeId?: string; // custbody11: 1-10 list values
   assistanceMonthId?: string;         // custbody12: 1=January … 12=December
   lineItems: Array<{
@@ -309,7 +309,7 @@ export function buildPurchaseOrderPayload(input: POInput) {
     custbody10: input.clientName || '',       // Client Name
     custbody7: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID (LSNDC) - Integer field, displayed as "CLIENT ID" on SSVF form
     custbody9: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID - Integer field (backup)
-    ...(input.clientTypeId ? { custbody8: { id: input.clientTypeId } } : {}),              // Client Type (1=RRH, 2=HP, 3=SS)
+    ...(input.clientTypeId ? { custbody8: { id: input.clientTypeId } } : {}),              // Client Type (1=RRH, 2=HP)
     ...(input.clientTypeId ? { custbody13: { id: input.clientTypeId } } : {}),             // Client Category SSVF (1=Cat1, 2=Cat2, 3=Cat3) — mirrors Client Type
     ...(input.financialAssistanceTypeId ? { custbody11: { id: input.financialAssistanceTypeId } } : {}), // Financial Assistance Type
     ...(input.assistanceMonthId ? { custbody12: { id: input.assistanceMonthId } } : {}),   // Assistance Month

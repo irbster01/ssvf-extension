@@ -423,6 +423,8 @@ function Dashboard() {
       {editingSubmission && (
         <EditModal
           submission={editingSubmission}
+          vendors={vendors}
+          vendorsLoading={vendorsLoading}
           onSave={handleSaveEdit}
           onClose={() => setEditingSubmission(null)}
           onUploadFile={handleUploadFile}

@@ -97,7 +97,6 @@ function guessItemId(assistanceType: string): string {
 const CLIENT_TYPES = [
   { id: '1', name: 'Rapid Rehousing' },
   { id: '2', name: 'Homeless Prevention' },
-  { id: '3', name: 'Shallow Subsidy' },
 ] as const;
 
 // NetSuite Financial Assistance Type list (custbody11)
@@ -119,7 +118,6 @@ function guessClientTypeId(programCategory: string): string {
   const lower = (programCategory || '').toLowerCase();
   if (lower.includes('rapid')) return '1';
   if (lower.includes('prevention')) return '2';
-  if (lower.includes('shallow')) return '3';
   return '';
 }
 

@@ -176,7 +176,7 @@ export async function UpdateSubmission(
     // Only allow updating specific fields
     const allowedUpdates: Partial<ServiceCapture> = {};
     const editableFields: (keyof ServiceCapture)[] = [
-      'client_id', 'client_name', 'vendor', 'vendor_account',
+      'client_id', 'client_name', 'vendor', 'vendor_id',
       'service_amount', 'region', 'program_category', 'status', 'notes', 'updated_by', 'updated_at',
       'po_number'
     ];
