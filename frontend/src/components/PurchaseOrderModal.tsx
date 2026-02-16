@@ -218,9 +218,17 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
     }
   };
 
+  // Auto-select department based on region
+  function guessDepartmentId(region: string): string {
+    const r = region.toLowerCase();
+    if (r === 'arkansas') return '617';  // 3035 SSVF - ARKANSAS
+    if (r === 'monroe') return '618';    // 3036 SSVF - MONROE
+    return '7';                          // 3031 SSVF (Shreveport / default)
+  }
+
   const assistanceType = submission.form_data?.assistance_type as string || submission.service_type || 'TFA Service';
   const [selectedItemId, setSelectedItemId] = useState(() => guessItemId(assistanceType));
-  const [selectedDeptId, setSelectedDeptId] = useState('7'); // Default: 3031 SSVF
+  const [selectedDeptId, setSelectedDeptId] = useState(() => guessDepartmentId(submission.region || ''));
   const [selectedSiteId, setSelectedSiteId] = useState('1'); // Default: 000 N/A
   const [selectedClientTypeId, setSelectedClientTypeId] = useState(() => guessClientTypeId(submission.program_category || ''));
   const [selectedFATypeId, setSelectedFATypeId] = useState(() => guessFinancialAssistanceTypeId(assistanceType));
