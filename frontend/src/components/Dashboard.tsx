@@ -195,7 +195,7 @@ function Dashboard() {
       });
       if (result.success) {
         const poId = result.response?.poId;
-        updateToast(toastId, 'success', poId ? `Created PO#${poId}` : 'Purchase Order created!');
+        updateToast(toastId, 'success', poId ? `Created ${poId}` : 'Purchase Order created!');
         if (poId) {
           handlePOCreated(submissionId, poId, serviceType);
         }
@@ -340,7 +340,7 @@ function Dashboard() {
                   <td className="amount">{formatAmount(submission.service_amount)}</td>
                   <td className="cell-po">
                     {submission.po_number ? (
-                      <span className="po-badge">PO#{submission.po_number}</span>
+                      <span className="po-badge">{submission.po_number}</span>
                     ) : (
                       <span style={{ color: '#ccc' }}>—</span>
                     )}
@@ -422,7 +422,7 @@ function Dashboard() {
                   {submission.po_number && (
                     <div className="mobile-card-detail">
                       <span className="mobile-card-label">PO #</span>
-                      <span className="po-badge">PO#{submission.po_number}</span>
+                      <span className="po-badge">{submission.po_number}</span>
                     </div>
                   )}
                   {submission.attachments && submission.attachments.length > 0 && (
