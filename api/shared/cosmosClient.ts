@@ -1,4 +1,4 @@
-import { CosmosClient, Container, Database } from '@azure/cosmos';
+import { CosmosClient, Container } from '@azure/cosmos';
 
 // Singleton pattern for connection reuse
 let client: CosmosClient | null = null;
@@ -151,7 +151,7 @@ export async function updateCapture(
   return resource as ServiceCapture;
 }
 
-export type SubmissionStatus = 'New' | 'In Progress' | 'Complete';
+export type SubmissionStatus = 'New' | 'Submitted';
 
 export interface ServiceCapture {
   id?: string;
@@ -171,6 +171,8 @@ export interface ServiceCapture {
   // SSVF program fields
   region?: 'Shreveport' | 'Monroe' | 'Arkansas';
   program_category?: 'Homeless Prevention' | 'Rapid Rehousing';
+  // Purchase Order
+  po_number?: string;
   // Workflow status fields
   status?: SubmissionStatus;
   notes?: string;

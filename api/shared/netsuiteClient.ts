@@ -50,60 +50,6 @@ function percentEncode(str: string): string {
 }
 
 /**
- * Generate OAuth 1.0 Authorization header for a NetSuite REST request.
- */
-function generateOAuthHeader(
-  method: string,
-  url: string,
-  config: NetSuiteConfig,
-): string {
-  const nonce = crypto.randomBytes(16).toString('hex');
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-
-  // OAuth parameters (alphabetical for signature base string)
-  const oauthParams: Record<string, string> = {
-    oauth_consumer_key: config.consumerKey,
-    oauth_nonce: nonce,
-    oauth_signature_method: 'HMAC-SHA256',
-    oauth_timestamp: timestamp,
-    oauth_token: config.tokenId,
-    oauth_version: '1.0',
-  };
-
-  // Build signature base string
-  const paramString = Object.keys(oauthParams)
-    .sort()
-    .map(key => `${percentEncode(key)}=${percentEncode(oauthParams[key])}`)
-    .join('&');
-
-  const baseString = [
-    method.toUpperCase(),
-    percentEncode(url),
-    percentEncode(paramString),
-  ].join('&');
-
-  // Signing key = consumerSecret&tokenSecret
-  const signingKey = `${percentEncode(config.consumerSecret)}&${percentEncode(config.tokenSecret)}`;
-
-  // HMAC-SHA256 signature
-  const signature = crypto
-    .createHmac('sha256', signingKey)
-    .update(baseString)
-    .digest('base64');
-
-  oauthParams['oauth_signature'] = signature;
-
-  // Build Authorization header
-  const realm = config.accountId;
-  const headerParams = Object.keys(oauthParams)
-    .sort()
-    .map(key => `${percentEncode(key)}="${percentEncode(oauthParams[key])}"`)
-    .join(', ');
-
-  return `OAuth realm="${realm}", ${headerParams}`;
-}
-
-/**
  * Generate OAuth header for a full URL that may contain query parameters.
  * Query params MUST be included in the signature base string per OAuth 1.0 spec.
  */
@@ -182,6 +128,7 @@ export async function netsuiteRequest(
   const options: RequestInit = {
     method,
     headers,
+    redirect: 'manual', // Don't follow redirects — we need the Location header
   };
 
   if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
@@ -362,7 +309,8 @@ export function buildPurchaseOrderPayload(input: POInput) {
     custbody10: input.clientName || '',       // Client Name
     custbody7: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID (LSNDC) - Integer field, displayed as "CLIENT ID" on SSVF form
     custbody9: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID - Integer field (backup)
-    ...(input.clientTypeId ? { custbody8: { id: input.clientTypeId } } : {}),              // Client Type
+    ...(input.clientTypeId ? { custbody8: { id: input.clientTypeId } } : {}),              // Client Type (1=RRH, 2=HP, 3=SS)
+    ...(input.clientTypeId ? { custbody13: { id: input.clientTypeId } } : {}),             // Client Category SSVF (1=Cat1, 2=Cat2, 3=Cat3) — mirrors Client Type
     ...(input.financialAssistanceTypeId ? { custbody11: { id: input.financialAssistanceTypeId } } : {}), // Financial Assistance Type
     ...(input.assistanceMonthId ? { custbody12: { id: input.assistanceMonthId } } : {}),   // Assistance Month
     custbody10_2: { id: '4' },                // Approval Routing Program: SSVF
@@ -401,17 +349,36 @@ export async function createPurchaseOrder(
     const result = await netsuiteRequest('POST', '/record/v1/purchaseOrder', payload);
 
     if (result.status === 204 || result.status === 200 || result.status === 201) {
-      // Extract PO internal ID from Location header (e.g. /record/v1/purchaseOrder/12345)
-      let poId: string | undefined;
+      // Extract PO internal ID from Location header (e.g. /record/v1/purchaseorder/12345)
+      let internalId: string | undefined;
       if (result.location) {
-        const match = result.location.match(/\/purchaseOrder\/(\d+)/);
-        if (match) poId = match[1];
+        const match = result.location.match(/\/purchaseorder\/(\d+)/i);
+        if (match) internalId = match[1];
       }
+      if (!internalId && result.data) {
+        if (result.data.id) internalId = String(result.data.id);
+        else if (result.data.internalId) internalId = String(result.data.internalId);
+      }
+
+      // Fetch the actual PO number (tranId) via SuiteQL — avoids triggering record scripts
+      let poNumber: string | undefined;
+      if (internalId) {
+        try {
+          const ql = await suiteQL(`SELECT tranId FROM transaction WHERE id = ${internalId}`, 1);
+          if (ql.items.length > 0 && ql.items[0].tranid) {
+            poNumber = String(ql.items[0].tranid);
+          }
+        } catch (fetchErr) {
+          console.warn('[createPurchaseOrder] SuiteQL tranId lookup failed:', fetchErr);
+        }
+      }
+
+      const displayId = poNumber || internalId;
       return {
         success: true,
-        message: `Purchase Order created in NetSuite!${poId ? ` (ID: ${poId})` : ''}`,
+        message: `Purchase Order created in NetSuite!${displayId ? ` (PO# ${displayId})` : ''}`,
         payload,
-        response: { status: result.status, data: result.data, location: result.location, poId },
+        response: { status: result.status, data: result.data, location: result.location, poId: displayId, internalId },
       };
     } else {
       return {

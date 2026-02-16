@@ -1,6 +1,7 @@
 // Main entry point that registers all Azure Functions
 // This file imports all function handlers to ensure they are registered with the runtime
 
+import '../AuthToken/index';
 import '../CaptureIngest/index';
 import '../ExportCaptures/index';
 import '../ViewLogs/index';

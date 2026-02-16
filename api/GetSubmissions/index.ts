@@ -177,7 +177,8 @@ export async function UpdateSubmission(
     const allowedUpdates: Partial<ServiceCapture> = {};
     const editableFields: (keyof ServiceCapture)[] = [
       'client_id', 'client_name', 'vendor', 'vendor_account',
-      'service_amount', 'region', 'program_category', 'status', 'notes', 'updated_by', 'updated_at'
+      'service_amount', 'region', 'program_category', 'status', 'notes', 'updated_by', 'updated_at',
+      'po_number'
     ];
 
     for (const field of editableFields) {

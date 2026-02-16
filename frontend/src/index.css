@@ -94,7 +94,7 @@ header h1 {
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .toolbar {
@@ -118,35 +118,86 @@ header h1 {
   border-radius: 4px;
 }
 
-table {
+.desktop-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.78rem;
 }
 
-th, td {
-  padding: 12px 16px;
+.desktop-table th,
+.desktop-table td {
+  padding: 5px 6px;
   text-align: left;
   border-bottom: 1px solid #e0e0e0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 10-column layout: Status | Date | Client | Region | Program | Vendor | Amt | PO# | Files | Actions */
+.desktop-table th:nth-child(1),
+.desktop-table td:nth-child(1) { width: 7%; }    /* Status */
+.desktop-table th:nth-child(2),
+.desktop-table td:nth-child(2) { width: 11%; }   /* Date */
+.desktop-table th:nth-child(3),
+.desktop-table td:nth-child(3) { width: 18%; }   /* Client */
+.desktop-table th:nth-child(4),
+.desktop-table td:nth-child(4) { width: 7%; }    /* Region */
+.desktop-table th:nth-child(5),
+.desktop-table td:nth-child(5) { width: 9%; }    /* Program */
+.desktop-table th:nth-child(6),
+.desktop-table td:nth-child(6) { width: 18%; }   /* Vendor */
+.desktop-table th:nth-child(7),
+.desktop-table td:nth-child(7) { width: 7%; }    /* Amt */
+.desktop-table th:nth-child(8),
+.desktop-table td:nth-child(8) { width: 8%; }    /* PO# */
+.desktop-table th:nth-child(9),
+.desktop-table td:nth-child(9) { width: 5%; }    /* Files */
+.desktop-table th:nth-child(10),
+.desktop-table td:nth-child(10) { width: 10%; }  /* Actions */
+
+th, td {
+  padding: 5px 6px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 0.78rem;
 }
 
 th {
   background: #f5f5f5;
   font-weight: 600;
   color: #555;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 tr:hover {
   background: #f8f9fa;
 }
 
+/* Date & Actions columns — prevent wrapping / alignment issues */
+.cell-date {
+  white-space: nowrap;
+}
+
+.cell-actions {
+  white-space: nowrap;
+}
+
+.actions-wrap {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
 /* Status badges */
 .status {
   display: inline-block;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: 12px;
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -156,12 +207,7 @@ tr:hover {
   color: #1565c0;
 }
 
-.status-in-progress {
-  background: #fff3e0;
-  color: #ef6c00;
-}
-
-.status-complete {
+.status-submitted {
   background: #e8f5e9;
   color: #2e7d32;
 }
@@ -674,6 +720,103 @@ tr:hover {
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ========== PO Badge ========== */
+.po-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cell-po {
+  white-space: nowrap;
+}
+
+/* ========== Toast Notifications ========== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  animation: toast-slide-in 0.3s ease-out;
+  min-width: 280px;
+  max-width: 420px;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-success {
+  background: #e8f5e9;
+  border: 1px solid #66bb6a;
+  color: #2e7d32;
+}
+
+.toast-error {
+  background: #fce4ec;
+  border: 1px solid #ef5350;
+  color: #c62828;
+}
+
+.toast-info {
+  background: #e3f2fd;
+  border: 1px solid #42a5f5;
+  color: #1565c0;
+}
+
+.toast-icon {
+  font-size: 1.1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  opacity: 0.5;
+  color: inherit;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.toast-close:hover {
+  opacity: 1;
 }
 
 /* ========== Mobile Cards (hidden on desktop) ========== */

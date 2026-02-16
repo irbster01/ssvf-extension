@@ -1,6 +1,6 @@
 {
   "name": "service-log-extension",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "Chrome extension to capture service submission data",
   "type": "module",
   "scripts": {

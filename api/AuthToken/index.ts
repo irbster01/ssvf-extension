@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { randomBytes, createHash } from 'crypto';
 
-// In-memory token store (use Redis in production)
+// In-memory token store (legacy auth — used by Chrome extension only)
 const tokenStore = new Map<string, { userId: string; createdAt: number; lastUsed: number }>();
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 

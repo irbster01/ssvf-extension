@@ -11,8 +11,6 @@ const redirectUri = isNative
   ? 'capacitor://localhost'
   : window.location.origin;
 
-console.log('[MSAL Config] isNative:', isNative, 'redirectUri:', redirectUri);
-
 export const msalConfig: Configuration = {
   auth: {
     // Same Azure AD app registration used by the extension
@@ -63,11 +61,7 @@ export const msalConfig: Configuration = {
   },
 };
 
-// Scopes for accessing the API
+// Scopes for login
 export const loginRequest = {
   scopes: ['User.Read', 'openid', 'profile', 'email'],
-};
-
-export const apiRequest = {
-  scopes: ['https://graph.microsoft.com/.default'],
 };

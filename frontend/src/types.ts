@@ -1,4 +1,4 @@
-export type SubmissionStatus = 'New' | 'In Progress' | 'Complete';
+export type SubmissionStatus = 'New' | 'Submitted';
 
 export interface AttachmentMeta {
   blobName: string;
@@ -27,6 +27,8 @@ export interface Submission {
   // SSVF program fields
   region?: 'Shreveport' | 'Monroe' | 'Arkansas';
   program_category?: 'Homeless Prevention' | 'Rapid Rehousing';
+  // Purchase Order
+  po_number?: string;
   // Workflow status
   status?: SubmissionStatus;
   notes?: string;

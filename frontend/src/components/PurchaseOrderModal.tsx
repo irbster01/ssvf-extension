@@ -15,6 +15,7 @@ interface PurchaseOrderModalProps {
   vendorsLoading: boolean;
   onClose: () => void;
   onSubmitPO: (poData: PurchaseOrderData) => Promise<POResult>;
+  onPOCreated?: (submissionId: string, poNumber: string, serviceType: string) => void;
 }
 
 export interface PurchaseOrderData {
@@ -146,7 +147,7 @@ function getAssistanceMonthId(dateStr: string): string {
   return String(d.getMonth() + 1); // 1=January … 12=December
 }
 
-function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO }: PurchaseOrderModalProps) {
+function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO, onPOCreated }: PurchaseOrderModalProps) {
   const [memo, setMemo] = useState(submission.notes || '');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; text: string; payload?: any; response?: any } | null>(null);
@@ -274,12 +275,16 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
       };
       const apiResult = await onSubmitPO(poData);
       if (apiResult.success) {
-        setResult({
-          type: 'success',
-          text: apiResult.message,
-          payload: apiResult.payload,
-          response: apiResult.response,
-        });
+        // Extract PO ID from response and notify parent
+        const poId = apiResult.response?.poId;
+        if (poId && onPOCreated) {
+          // Fire and don't await — parent handles persistence
+          onPOCreated(submission.id, poId, submission.service_type);
+        }
+        // Close modal — toast handles the success message
+        setSending(false);
+        onClose();
+        return;
       } else {
         setResult({
           type: 'error',

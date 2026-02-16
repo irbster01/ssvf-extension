@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { Capacitor } from '@capacitor/core';
 import { Submission, SubmissionStatus } from '../types';
@@ -8,7 +8,13 @@ import EditModal from './EditModal';
 import PurchaseOrderModal, { PurchaseOrderData } from './PurchaseOrderModal';
 import SubmitTFA from './SubmitTFA';
 
-const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'In Progress', 'Complete'];
+interface Toast {
+  id: number;
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
+const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'Submitted'];
 const isNative = Capacitor.isNativePlatform();
 
 function Dashboard() {
@@ -21,6 +27,16 @@ function Dashboard() {
   const [poSubmission, setPoSubmission] = useState<Submission | null>(null);
   const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastIdRef = useRef(0);
+
+  const addToast = useCallback((type: Toast['type'], message: string) => {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  }, []);
 
   const currentUsername = isNative ? (nativeAuth.getAccount()?.username || '') : (accounts[0]?.username || '');
 
@@ -148,8 +164,33 @@ function Dashboard() {
       ...poData,
       dryRun: false, // Live mode — sends PO to NetSuite sandbox
     });
+    if (result.success) {
+      const poId = result.response?.poId;
+      addToast('success', poId ? `Created PO#${poId}` : 'Purchase Order created!');
+    } else {
+      addToast('error', result.message || 'Failed to create PO');
+    }
     return result;
   };
+
+  const handlePOCreated = useCallback(async (submissionId: string, poNumber: string, serviceType: string) => {
+    // Update local state immediately — set PO number AND status to Submitted
+    setSubmissions(prev => prev.map(s =>
+      s.id === submissionId ? { ...s, po_number: poNumber, status: 'Submitted' as SubmissionStatus } : s
+    ));
+    // Persist the PO number + status on the submission in Cosmos DB
+    try {
+      const token = await getToken();
+      await updateSubmission(token, submissionId, serviceType, {
+        po_number: poNumber,
+        status: 'Submitted',
+        updated_by: currentUsername,
+        updated_at: new Date().toISOString(),
+      } as any);
+    } catch (err) {
+      console.warn('Failed to save PO number to submission:', err);
+    }
+  }, [getToken, currentUsername]);
 
   const filteredSubmissions = statusFilter === 'all'
     ? submissions
@@ -157,19 +198,20 @@ function Dashboard() {
 
   const stats = {
     new: submissions.filter(s => s.status === 'New').length,
-    inProgress: submissions.filter(s => s.status === 'In Progress').length,
-    complete: submissions.filter(s => s.status === 'Complete').length,
+    submitted: submissions.filter(s => s.status === 'Submitted').length,
   };
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const d = new Date(dateStr);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    const h = d.getHours();
+    const ampm = h >= 12 ? 'p' : 'a';
+    const hr = h % 12 || 12;
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${mm}/${dd}/${yy} ${hr}:${min}${ampm}`;
   };
 
   const formatAmount = (amount?: number) => {
@@ -187,21 +229,6 @@ function Dashboard() {
 
       <SubmitTFA getToken={getToken} onSubmitted={loadSubmissions} vendors={vendors} vendorsLoading={vendorsLoading} />
 
-      <div className="stats">
-        <div className="stat-card new">
-          <h3>New</h3>
-          <div className="value">{stats.new}</div>
-        </div>
-        <div className="stat-card in-progress">
-          <h3>In Progress</h3>
-          <div className="value">{stats.inProgress}</div>
-        </div>
-        <div className="stat-card complete">
-          <h3>Complete</h3>
-          <div className="value">{stats.complete}</div>
-        </div>
-      </div>
-
       <div className="table-container">
         <div className="toolbar">
           <div className="filters">
@@ -209,8 +236,7 @@ function Dashboard() {
             <select id="status-filter" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="all">All ({submissions.length})</option>
               <option value="New">New ({stats.new})</option>
-              <option value="In Progress">In Progress ({stats.inProgress})</option>
-              <option value="Complete">Complete ({stats.complete})</option>
+              <option value="Submitted">Submitted ({stats.submitted})</option>
             </select>
           </div>
           <button className="btn btn-primary" onClick={loadSubmissions} aria-label="Refresh submissions">
@@ -228,9 +254,9 @@ function Dashboard() {
               <th scope="col">Region</th>
               <th scope="col">Program</th>
               <th scope="col">Vendor</th>
-              <th scope="col">Amount</th>
+              <th scope="col">Amt</th>
+              <th scope="col">PO#</th>
               <th scope="col">Files</th>
-              <th scope="col">Captured By</th>
               <th scope="col">Actions</th>
             </tr>
           </thead>
@@ -263,47 +289,52 @@ function Dashboard() {
                       ))}
                     </select>
                   </td>
-                  <td>{formatDate(submission.captured_at_utc)}</td>
-                  <td>
-                    <div><strong>{submission.client_name || '-'}</strong></div>
-                    <div style={{ fontSize: '0.85em', color: '#666' }}>
-                      {submission.client_id || 'No ID'}
+                  <td className="cell-date">{formatDate(submission.captured_at_utc)}</td>
+                  <td title={`${submission.client_name || ''} (${submission.client_id || ''})`}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}><strong>{submission.client_name || '-'}</strong></div>
+                    <div style={{ fontSize: '0.8em', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {submission.client_id || ''}
                     </div>
                   </td>
                   <td>{submission.region || '-'}</td>
-                  <td style={{ fontSize: '0.9em' }}>{submission.program_category || '-'}</td>
-                  <td>
-                    <div>{submission.vendor || '-'}</div>
-                    <div style={{ fontSize: '0.85em', color: '#666' }}>
-                      {submission.vendor_account || ''}
-                    </div>
+                  <td>{submission.program_category || '-'}</td>
+                  <td title={submission.vendor || ''}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{submission.vendor || '-'}</div>
                   </td>
                   <td className="amount">{formatAmount(submission.service_amount)}</td>
+                  <td className="cell-po">
+                    {submission.po_number ? (
+                      <span className="po-badge">PO#{submission.po_number}</span>
+                    ) : (
+                      <span style={{ color: '#ccc' }}>—</span>
+                    )}
+                  </td>
                   <td>
                     {submission.attachments && submission.attachments.length > 0 ? (
                       <span title={submission.attachments.map(a => a.fileName).join(', ')} style={{ cursor: 'help' }}>
-                        📎 {submission.attachments.length}
+                        📎{submission.attachments.length}
                       </span>
                     ) : (
                       <span style={{ color: '#ccc' }}>—</span>
                     )}
                   </td>
-                  <td>{submission.user_id}</td>
-                  <td style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      className="btn btn-primary btn-small"
-                      onClick={() => setPoSubmission(submission)}
-                      aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
-                    >
-                      PO
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-small"
-                      onClick={() => setEditingSubmission(submission)}
-                      aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
-                    >
-                      Edit
-                    </button>
+                  <td className="cell-actions">
+                    <div className="actions-wrap">
+                      <button
+                        className="btn btn-primary btn-small"
+                        onClick={() => setPoSubmission(submission)}
+                        aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
+                      >
+                        PO
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-small"
+                        onClick={() => setEditingSubmission(submission)}
+                        aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -352,6 +383,12 @@ function Dashboard() {
                     <span className="mobile-card-label">Vendor</span>
                     <span>{submission.vendor || '-'}</span>
                   </div>
+                  {submission.po_number && (
+                    <div className="mobile-card-detail">
+                      <span className="mobile-card-label">PO #</span>
+                      <span className="po-badge">PO#{submission.po_number}</span>
+                    </div>
+                  )}
                   {submission.attachments && submission.attachments.length > 0 && (
                     <div className="mobile-card-detail">
                       <span className="mobile-card-label">Files</span>
@@ -400,8 +437,20 @@ function Dashboard() {
           vendorsLoading={vendorsLoading}
           onClose={() => setPoSubmission(null)}
           onSubmitPO={handleCreatePO}
+          onPOCreated={handlePOCreated}
         />
       )}
+
+      {/* Toast notifications */}
+      <div className="toast-container" aria-live="polite">
+        {toasts.map(toast => (
+          <div key={toast.id} className={`toast toast-${toast.type}`}>
+            <span className="toast-icon">{toast.type === 'success' ? '✓' : toast.type === 'error' ? '✗' : 'ℹ'}</span>
+            <span className="toast-message">{toast.message}</span>
+            <button className="toast-close" onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}>×</button>
+          </div>
+        ))}
+      </div>
     </>
   );
 }

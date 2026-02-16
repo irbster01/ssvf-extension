@@ -52,16 +52,10 @@ export async function CaptureIngest(
   let userId: string | undefined;
   let userEmail: string | undefined;
   
-  // Log token info for debugging
-  context.log(`[DEBUG] Token length: ${token.length}, isJwt: ${isJwtToken(token)}`);
-  context.log(`[DEBUG] Token preview: ${token.substring(0, 50)}...`);
-  
   // Determine token type and validate accordingly
   if (isJwtToken(token)) {
     // Entra ID JWT token
-    context.log('[DEBUG] Validating as JWT token...');
     const entraValidation = await validateEntraIdToken(token);
-    context.log(`[DEBUG] JWT validation result: ${JSON.stringify(entraValidation)}`);
     if (!entraValidation.valid || !entraValidation.userId) {
       context.warn('❌ Invalid or expired Entra ID token');
       return {

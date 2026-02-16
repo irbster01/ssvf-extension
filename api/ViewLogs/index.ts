@@ -71,7 +71,7 @@ export async function ViewLogs(
     };
   }
 
-  // Rate limiting check (stricter for logs - 5 requests per minute)
+  // Rate limiting check
   const rateLimitCheck = checkRateLimit(userId);
   if (!rateLimitCheck.allowed) {
     context.warn(`❌ Rate limit exceeded for user: ${userId}`);
