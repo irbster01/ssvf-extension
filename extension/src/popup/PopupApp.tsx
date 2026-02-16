@@ -123,28 +123,28 @@ export const PopupApp: React.FC = () => {
   useEffect(() => {
     const checkAuthentication = async () => {
       try {
+        // getCurrentAccount now checks token expiration — returns null if expired
         const account = await getCurrentAccount();
         if (account) {
           setIsAuthenticated(true);
           setUserName(account.name || 'User');
           setUserEmail(account.username || '');
-        } else {
-          chrome.storage.local.get(['authToken', 'userName', 'userEmail'], (result) => {
-            if (result.authToken) {
-              setIsAuthenticated(true);
-              setUserName(result.userName || 'User');
-              setUserEmail(result.userEmail || '');
-            }
-          });
+          return;
         }
-      } catch {
-        chrome.storage.local.get(['authToken', 'userName', 'userEmail'], (result) => {
-          if (result.authToken) {
+
+        // No valid account — maybe token expired. Try silent refresh.
+        const refreshedToken = await silentTokenRefresh();
+        if (refreshedToken) {
+          // Token refreshed — re-read stored user info
+          chrome.storage.local.get(['userName', 'userEmail'], (result) => {
             setIsAuthenticated(true);
             setUserName(result.userName || 'User');
             setUserEmail(result.userEmail || '');
-          }
-        });
+          });
+        }
+        // If silent refresh also failed, user stays logged out and sees Sign In button
+      } catch (err) {
+        console.warn('[Auth] checkAuthentication error:', err);
       }
     };
     

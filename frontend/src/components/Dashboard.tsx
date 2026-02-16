@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMsal } from '@azure/msal-react';
+import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import { Capacitor } from '@capacitor/core';
 import { Submission, SubmissionStatus } from '../types';
 import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor } from '../api/submissions';
@@ -56,11 +57,23 @@ function Dashboard() {
     const account = accounts[0];
     if (!account) throw new Error('No account');
 
-    const response = await instance.acquireTokenSilent({
-      scopes: ['User.Read'],
-      account,
-    });
-    return response.accessToken;
+    try {
+      const response = await instance.acquireTokenSilent({
+        scopes: ['User.Read'],
+        account,
+      });
+      return response.accessToken;
+    } catch (err) {
+      // If the cached token/refresh token is expired or invalid,
+      // fall back to an interactive redirect to re-authenticate
+      if (err instanceof InteractionRequiredAuthError) {
+        console.warn('[MSAL] Silent token failed, redirecting to login');
+        await instance.acquireTokenRedirect({ scopes: ['User.Read'], account });
+        // acquireTokenRedirect navigates away; this line won't execute
+        throw new Error('Redirecting to login...');
+      }
+      throw err;
+    }
   }, [instance, accounts]);
 
   const loadSubmissions = useCallback(async () => {

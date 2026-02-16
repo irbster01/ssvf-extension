@@ -6,11 +6,41 @@ const TENANT_ID = '38c1626e-b75d-40a6-b21b-0aae1191c730';
 const REDIRECT_URL = chrome.identity.getRedirectURL();
 const SCOPES = ['openid', 'profile', 'email', 'User.Read'];
 
+// Buffer in seconds — treat token as expired 5 min before actual expiry
+const EXPIRY_BUFFER_SECONDS = 300;
+
 interface UserInfo {
   sub: string;
   name: string;
   email: string;
   preferred_username: string;
+}
+
+/**
+ * Decode a JWT and return the payload (without verifying signature).
+ * Returns null if the token is malformed.
+ */
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(payload));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check whether a stored access token is still valid (not expired).
+ * Returns false if the token is missing, malformed, or expired.
+ */
+function isTokenValid(token: string | undefined | null): boolean {
+  if (!token) return false;
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.exp) return false;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return payload.exp > nowSeconds + EXPIRY_BUFFER_SECONDS;
 }
 
 /**
@@ -132,12 +162,13 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * Get the current account (if signed in)
+ * Get the current account (if signed in with a valid token).
+ * Returns null if no token or if the token has expired.
  */
 export async function getCurrentAccount(): Promise<{ name: string; username: string } | null> {
   return new Promise((resolve) => {
     chrome.storage.local.get(['authToken', 'userName', 'userEmail'], (result) => {
-      if (result.authToken && result.userName) {
+      if (result.authToken && isTokenValid(result.authToken) && result.userName) {
         resolve({
           name: result.userName,
           username: result.userEmail || '',
@@ -193,19 +224,28 @@ export async function silentTokenRefresh(): Promise<string | null> {
 }
 
 /**
- * Get a valid token, attempting silent refresh if needed
- * Returns the token or null if user needs to re-authenticate
+ * Get a valid token, attempting silent refresh if the stored one is expired.
+ * Returns the token or null if user needs to re-authenticate interactively.
  */
 export async function getValidToken(): Promise<string | null> {
   return new Promise((resolve) => {
     chrome.storage.local.get(['authToken'], async (result) => {
+      // No token at all — not logged in
       if (!result.authToken) {
         resolve(null);
         return;
       }
-      
-      // Return the stored token - caller should handle 401 and call silentTokenRefresh
-      resolve(result.authToken);
+
+      // Token is still valid — return it
+      if (isTokenValid(result.authToken)) {
+        resolve(result.authToken);
+        return;
+      }
+
+      // Token expired — try silent refresh
+      console.log('[Auth] Stored token expired, attempting silent refresh…');
+      const refreshed = await silentTokenRefresh();
+      resolve(refreshed);
     });
   });
 }
