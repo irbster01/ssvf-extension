@@ -122,6 +122,8 @@ function WebApp() {
   };
 
   const handleLogout = () => {
+    // Clear extension SSO token
+    sessionStorage.removeItem('extension_sso_token');
     instance.logoutRedirect().catch((error) => {
       console.error('Logout failed:', error);
     });
@@ -135,7 +137,9 @@ function WebApp() {
     );
   }
 
-  if (!isAuthenticated) {
+  // Check for extension SSO token even if not authenticated via MSAL
+  const extensionToken = sessionStorage.getItem('extension_sso_token');
+  if (!isAuthenticated && !extensionToken) {
     return (
       <div className="app">
         <div className="login-container">

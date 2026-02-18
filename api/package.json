@@ -12,7 +12,9 @@
   "dependencies": {
     "@azure/cosmos": "^4.0.0",
     "@azure/functions": "^4.3.0",
+    "@azure/identity": "^4.2.0",
     "@azure/storage-blob": "^12.31.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
     "jsonwebtoken": "^9.0.0"
   },
   "devDependencies": {

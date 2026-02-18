@@ -6,6 +6,7 @@ interface EditModalProps {
   submission: Submission;
   vendors: NetSuiteVendor[];
   vendorsLoading: boolean;
+  currentUsername?: string;
   onSave: (updates: Partial<Submission>) => Promise<void>;
   onClose: () => void;
   onUploadFile: (file: File) => Promise<AttachmentMeta>;
@@ -22,7 +23,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function EditModal({ submission, vendors, vendorsLoading, onSave, onClose, onUploadFile, onDownloadFile }: EditModalProps) {
+function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSave, onClose, onUploadFile, onDownloadFile }: EditModalProps) {
   const [clientId, setClientId] = useState(submission.client_id || '');
   const [clientName, setClientName] = useState(submission.client_name || '');
   const [serviceAmount, setServiceAmount] = useState(submission.service_amount?.toString() || '');
@@ -30,9 +31,11 @@ function EditModal({ submission, vendors, vendorsLoading, onSave, onClose, onUpl
   const [programCategory, setProgramCategory] = useState(submission.program_category || '');
   const [status, setStatus] = useState<SubmissionStatus>(submission.status || 'New');
   const [notes, setNotes] = useState(submission.notes || '');
+  const [tfaDate, setTfaDate] = useState(submission.tfa_date || '');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentMeta[]>(submission.attachments || []);
+  const [enteredInSystem, setEnteredInSystem] = useState(submission.entered_in_system || false);
 
   // Vendor autocomplete state
   const [vendorSearch, setVendorSearch] = useState(submission.vendor || '');
@@ -102,6 +105,10 @@ function EditModal({ submission, vendors, vendorsLoading, onSave, onClose, onUpl
         program_category: (programCategory as any) || undefined,
         status,
         notes: notes || undefined,
+        tfa_date: tfaDate || undefined,
+        entered_in_system: enteredInSystem,
+        entered_in_system_by: enteredInSystem ? (submission.entered_in_system_by || currentUsername || undefined) : undefined,
+        entered_in_system_at: enteredInSystem ? (submission.entered_in_system_at || new Date().toISOString()) : undefined,
       });
     } finally {
       setSaving(false);
@@ -237,6 +244,52 @@ function EditModal({ submission, vendors, vendorsLoading, onSave, onClose, onUpl
               onChange={e => setServiceAmount(e.target.value)}
               placeholder="0.00"
             />
+          </div>
+
+          <div className="form-group">
+            <label>TFA Date</label>
+            <input
+              type="date"
+              value={tfaDate}
+              onChange={e => setTfaDate(e.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Entered in System</label>
+            <div
+              onClick={() => setEnteredInSystem(!enteredInSystem)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 14px',
+                backgroundColor: enteredInSystem ? '#ecfdf5' : '#fff7ed',
+                border: `1px solid ${enteredInSystem ? '#a7f3d0' : '#fed7aa'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                userSelect: 'none' as const,
+                transition: 'all 0.2s',
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEnteredInSystem(!enteredInSystem); } }}
+            >
+              <span style={{
+                width: '10px', height: '10px', borderRadius: '50%',
+                backgroundColor: enteredInSystem ? '#10b981' : '#e8916e',
+                boxShadow: enteredInSystem ? '0 0 4px rgba(16,185,129,0.4)' : '0 0 3px rgba(232,145,110,0.3)',
+                flexShrink: 0,
+              }} />
+              <span style={{ fontWeight: 500, color: enteredInSystem ? '#065f46' : '#9a3412', fontSize: '0.9em' }}>
+                {enteredInSystem ? 'Entered in ServicePoint / LSNDC' : 'Not yet entered'}
+              </span>
+              {enteredInSystem && submission.entered_in_system_by && (
+                <span style={{ fontSize: '0.8em', color: '#6b7280', marginLeft: 'auto' }}>
+                  by {submission.entered_in_system_by}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="form-group">

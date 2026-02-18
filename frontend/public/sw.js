@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ssvf-tfa-v1';
+const CACHE_NAME = 'ssvf-tfa-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -30,8 +30,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Never cache API calls or auth
-  if (url.includes('/api/') || url.includes('login.microsoftonline.com')) {
+  // Never cache API calls, auth, or SignalR
+  if (url.includes('/api/') || url.includes('login.microsoftonline.com') || url.includes('signalr.net')) {
     return;
   }
 

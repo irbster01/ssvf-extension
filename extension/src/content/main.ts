@@ -306,7 +306,6 @@ function captureFormData(): Record<string, any> {
   const urlMatch = window.location.href.match(/clientId=(\d+)/);
   if (urlMatch) {
     formData['client_id'] = urlMatch[1];
-    console.log(`[TFA Logger] 👤 Client ID from URL: ${urlMatch[1]}`);
   }
 
   // Capture all input fields
@@ -427,7 +426,6 @@ function captureFormData(): Record<string, any> {
     if (formData['client_name']) break;
   }
 
-  console.log('[TFA Logger] 📋 Captured fields:', Object.keys(formData));
   return formData;
 }
 
@@ -595,7 +593,7 @@ async function submitTFA(formData: Record<string, any>): Promise<boolean> {
 
 // ============ MAIN HANDLER ============
 async function handleSaveAndExit() {
-  console.log('[TFA Logger] Save & Exit clicked - checking if capture is enabled...');
+
 
   // Check if auto-capture is enabled (default: Off)
   const enabled = await new Promise<boolean>((resolve) => {
@@ -609,11 +607,9 @@ async function handleSaveAndExit() {
   });
 
   if (!enabled) {
-    console.log('[TFA Logger] Auto-capture is OFF — skipping');
     return;
   }
 
-  console.log('[TFA Logger] Auto-capture is ON — capturing form data...');
   const formData = captureFormData();
   
   // Check if user is authenticated first
@@ -628,8 +624,6 @@ async function handleSaveAndExit() {
   
   if (shouldSubmit) {
     await submitTFA(formData);
-  } else {
-    console.log('[TFA Logger] User skipped TFA submission');
   }
 }
 
@@ -642,7 +636,7 @@ function isSaveAndExit(text: string): boolean {
 
 // ============ INITIALIZATION ============
 if (window.__tfaLoggerInitialized) {
-  console.log('[TFA Logger] Already initialized, skipping');
+  // Already initialized
 } else {
   window.__tfaLoggerInitialized = true;
   
@@ -663,7 +657,6 @@ if (window.__tfaLoggerInitialized) {
         const buttonText = element.textContent?.trim() || '';
         
         if (isSaveAndExit(buttonText)) {
-          console.log(`[TFA Logger] ✓ Save & Exit detected: "${buttonText}"`);
           // Don't prevent default - let the save happen
           handleSaveAndExit();
           return;
@@ -673,5 +666,5 @@ if (window.__tfaLoggerInitialized) {
     }
   }, true);
 
-  console.log('[TFA Logger] ✓ Initialized - listening for Save & Exit');
+
 }

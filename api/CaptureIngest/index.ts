@@ -163,6 +163,7 @@ export async function CaptureIngest(
       service_amount: parseFloat(formData.service_cost_amount) || undefined,
       region: formData.region as ServiceCapture['region'],
       program_category: formData.program_category as ServiceCapture['program_category'],
+      tfa_date: formData.tfa_date as string | undefined,
     };
 
     // Build the capture document

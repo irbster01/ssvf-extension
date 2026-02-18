@@ -1,4 +1,4 @@
-import { Submission, AttachmentMeta } from '../types';
+import { Submission, AttachmentMeta, Message, UnreadCountResponse } from '../types';
 
 const API_BASE = import.meta.env.PROD 
   ? 'https://ssvf-capture-api.azurewebsites.net/api'
@@ -109,6 +109,7 @@ export interface TFASubmission {
   region: string;
   programCategory: string;
   assistanceType: string;
+  tfaDate: string;          // mm/dd/yyyy date of the TFA
   notes: string;
 }
 
@@ -126,6 +127,7 @@ export async function submitCapture(token: string, tfa: TFASubmission): Promise<
       region: tfa.region,
       program_category: tfa.programCategory,
       assistance_type: tfa.assistanceType,
+      tfa_date: tfa.tfaDate || undefined,
       notes: tfa.notes,
       manual_entry: true,
     },
@@ -218,6 +220,98 @@ export async function createNetSuitePO(
     },
     body: JSON.stringify(input),
   });
+
+  return response.json();
+}
+
+// ============ Internal Messaging ============
+
+export async function fetchMessages(token: string, submissionId: string): Promise<Message[]> {
+  const response = await fetch(`${API_BASE}/submissions/${submissionId}/messages`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch messages: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function sendMessage(
+  token: string,
+  submissionId: string,
+  text: string,
+  serviceType: string = 'TFA'
+): Promise<Message> {
+  const response = await fetch(`${API_BASE}/submissions/${submissionId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text, service_type: serviceType }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to send message: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function markThreadRead(
+  token: string,
+  submissionId: string
+): Promise<{ success: boolean; markedCount: number }> {
+  const response = await fetch(`${API_BASE}/messages/read-thread`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ submissionId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to mark thread read: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchUnreadCount(token: string): Promise<UnreadCountResponse> {
+  const response = await fetch(`${API_BASE}/messages/unread-count`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch unread count: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function negotiateSignalR(token: string): Promise<{
+  url: string | null;
+  accessToken: string | null;
+  userId: string;
+  configured: boolean;
+}> {
+  const response = await fetch(`${API_BASE}/signalr/negotiate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to negotiate SignalR: ${response.status}`);
+  }
 
   return response.json();
 }

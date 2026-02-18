@@ -8,5 +8,9 @@ import '../ViewLogs/index';
 import '../GetSubmissions/index';
 import '../Attachments/index';
 import '../NetSuitePO/index';
+import '../Messages/index';
+import '../MessagesRead/index';
+import '../UnreadCount/index';
+import '../SignalR/index';
 
 // The functions are registered via app.http() calls in their respective modules

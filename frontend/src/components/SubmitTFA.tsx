@@ -29,6 +29,7 @@ const emptyForm: TFASubmission = {
   region: 'Shreveport',
   programCategory: 'Homeless Prevention',
   assistanceType: 'Rental Assistance',
+  tfaDate: '',
   notes: '',
 };
 
@@ -244,6 +245,28 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
 
         <div className="form-row">
           <div className="form-group">
+            <label>TFA Date</label>
+            <input
+              type="date"
+              value={form.tfaDate}
+              onChange={e => set('tfaDate', e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label>Amount *</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="e.g., 150.00"
+              value={form.amount}
+              onChange={e => set('amount', e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
             <label>Vendor *</label>
             <div className="vendor-autocomplete" ref={dropdownRef}>
               <input
@@ -295,17 +318,6 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
                 </div>
               )}
             </div>
-          </div>
-          <div className="form-group">
-            <label>Amount *</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="e.g., 150.00"
-              value={form.amount}
-              onChange={e => set('amount', e.target.value)}
-              required
-            />
           </div>
         </div>
 

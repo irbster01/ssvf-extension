@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { signIn, signOut, getCurrentAccount, silentTokenRefresh, getValidToken } from '../auth/authService';
-import { API_URL } from '../config';
+import { API_URL, SWA_URL } from '../config';
 
 interface NetSuiteVendor {
   id: string;
@@ -56,6 +56,7 @@ interface ManualTFAForm {
   region: SSVFRegion;
   programCategory: ProgramCategory;
   assistanceType: FinancialAssistanceType;
+  tfaDate: string;
   notes: string;
 }
 
@@ -65,8 +66,20 @@ interface Submission {
   client_name?: string;
   vendor?: string;
   service_amount?: number;
+  service_type?: string;
   status?: 'New' | 'In Progress' | 'Complete';
   captured_at_utc: string;
+  region?: string;
+  program_category?: string;
+  entered_in_system?: boolean;
+  entered_in_system_by?: string;
+  entered_in_system_at?: string;
+  form_data?: {
+    assistance_type?: string;
+    region?: string;
+    program_category?: string;
+    [key: string]: any;
+  };
 }
 
 type TabType = 'activity' | 'manual' | 'submissions';
@@ -91,6 +104,7 @@ export const PopupApp: React.FC = () => {
     region: 'Shreveport',
     programCategory: 'Homeless Prevention',
     assistanceType: 'Rental Assistance',
+    tfaDate: '',
     notes: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -98,9 +112,21 @@ export const PopupApp: React.FC = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [submissionsError, setSubmissionsError] = useState<string | null>(null);
+  const [togglingEnteredId, setTogglingEnteredId] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [captureEnabled, setCaptureEnabled] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [showAuthWarning, setShowAuthWarning] = useState(false);
+
+  // Messaging state
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [expandedMessagesSub, setExpandedMessagesSub] = useState<string | null>(null);
+  const [threadMessages, setThreadMessages] = useState<Array<{ id: string; text: string; sentBy: string; sentByName: string; sentAt: string; readBy: string[] }>>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const threadEndRef = useRef<HTMLDivElement>(null);
 
   // Vendor autocomplete state
   const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
@@ -129,6 +155,8 @@ export const PopupApp: React.FC = () => {
           setIsAuthenticated(true);
           setUserName(account.name || 'User');
           setUserEmail(account.username || '');
+          setShowAuthWarning(false);
+          setAuthError(null);
           return;
         }
 
@@ -140,11 +168,18 @@ export const PopupApp: React.FC = () => {
             setIsAuthenticated(true);
             setUserName(result.userName || 'User');
             setUserEmail(result.userEmail || '');
+            setShowAuthWarning(false);
+            setAuthError(null);
           });
+        } else {
+          // Silent refresh failed - show warning
+          setShowAuthWarning(true);
+          setAuthError('Your session has expired. Please sign in again.');
         }
         // If silent refresh also failed, user stays logged out and sees Sign In button
       } catch (err) {
         console.warn('[Auth] checkAuthentication error:', err);
+        setAuthError('Authentication error. Please try signing in again.');
       }
     };
     
@@ -237,16 +272,20 @@ export const PopupApp: React.FC = () => {
 
   const handleAuthenticate = async () => {
     setIsAuthenticating(true);
+    setAuthError(null);
     try {
       const account = await signIn();
       if (account) {
         setIsAuthenticated(true);
         setUserName(account.name || 'User');
         setUserEmail(account.username || '');
+        setShowAuthWarning(false);
+        setAuthError(null);
       }
     } catch (error: any) {
       if (error?.errorCode !== 'user_cancelled') {
         console.error('Sign in error:', error);
+        setAuthError('Failed to sign in. Please try again.');
       }
     } finally {
       setIsAuthenticating(false);
@@ -294,6 +333,7 @@ export const PopupApp: React.FC = () => {
           region: manualForm.region,
           program_category: manualForm.programCategory,
           assistance_type: manualForm.assistanceType,
+          tfa_date: manualForm.tfaDate || undefined,
           notes: manualForm.notes,
           manual_entry: true,
         },
@@ -310,7 +350,6 @@ export const PopupApp: React.FC = () => {
 
       // Handle 401 - try silent refresh
       if (response.status === 401) {
-        console.log('[PopupApp] Got 401 on submit, attempting silent token refresh...');
         const newToken = await silentTokenRefresh();
         
         if (newToken) {
@@ -329,6 +368,8 @@ export const PopupApp: React.FC = () => {
           setIsAuthenticated(false);
           setUserName('');
           setUserEmail('');
+          setShowAuthWarning(true);
+          setAuthError('Session expired. Please sign in again.');
           setSubmitMessage({ type: 'error', text: 'Session expired. Please sign in again.' });
           setIsSubmitting(false);
           return;
@@ -368,7 +409,7 @@ export const PopupApp: React.FC = () => {
         }
 
         setSubmitMessage({ type: 'success', text: 'TFA submitted successfully!' });
-        setManualForm({ clientId: '', clientName: '', vendor: '', amount: '', region: 'Shreveport', programCategory: 'Homeless Prevention', assistanceType: 'Rental Assistance', notes: '' });
+        setManualForm({ clientId: '', clientName: '', vendor: '', amount: '', region: 'Shreveport', programCategory: 'Homeless Prevention', assistanceType: 'Rental Assistance', tfaDate: '', notes: '' });
         setSelectedFiles([]);
         setSelectedVendor(null);
         setVendorSearch('');
@@ -428,17 +469,6 @@ export const PopupApp: React.FC = () => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const clearStats = () => {
-    const emptyStats: Stats = {
-      totalCaptures: 0,
-      successfulCaptures: 0,
-      lastCaptureTime: null,
-      recentLogs: [],
-    };
-    setStats(emptyStats);
-    chrome.storage.local.set({ captureStats: emptyStats });
-  };
-
   const fetchSubmissions = async () => {
     if (!isAuthenticated) return;
     
@@ -463,7 +493,6 @@ export const PopupApp: React.FC = () => {
 
       // Handle 401 - try silent refresh
       if (response.status === 401) {
-        console.log('[PopupApp] Got 401, attempting silent token refresh...');
         const newToken = await silentTokenRefresh();
         
         if (newToken) {
@@ -490,6 +519,21 @@ export const PopupApp: React.FC = () => {
 
       const data = await response.json();
       setSubmissions(data.slice(0, 20)); // Show last 20
+
+      // Also fetch unread counts
+      try {
+        const ucToken = await getValidToken();
+        if (ucToken) {
+          const ucResp = await fetch(`${API_URL.replace('/captures', '/messages/unread-count')}`, {
+            headers: { 'Authorization': `Bearer ${ucToken}` },
+          });
+          if (ucResp.ok) {
+            const ucData = await ucResp.json();
+            setUnreadCounts(ucData.perSubmission || {});
+          }
+        }
+      } catch { /* non-critical */ }
+
     } catch (err) {
       setSubmissionsError(err instanceof Error ? err.message : 'Failed to load submissions');
     } finally {
@@ -497,11 +541,137 @@ export const PopupApp: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (activeTab === 'submissions' && isAuthenticated) {
-      fetchSubmissions();
+  /** Fetch messages for a submission thread */
+  const fetchThreadMessages = async (submissionId: string) => {
+    setThreadLoading(true);
+    try {
+      const token = await getValidToken();
+      if (!token) return;
+      const resp = await fetch(`${API_URL.replace('/captures', `/submissions/${submissionId}/messages`)}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        const msgs = await resp.json();
+        setThreadMessages(msgs);
+        // Mark thread as read
+        await fetch(`${API_URL.replace('/captures', '/messages/read-thread')}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ submissionId }),
+        });
+        setUnreadCounts(prev => { const next = { ...prev }; delete next[submissionId]; return next; });
+        // Tell background to refresh badge
+        chrome.runtime.sendMessage({ type: 'REFRESH_UNREAD' }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[Messages] Failed to fetch thread:', err);
+    } finally {
+      setThreadLoading(false);
     }
-  }, [activeTab, isAuthenticated]);
+  };
+
+  /** Send a reply message */
+  const handleSendReply = async (submissionId: string, serviceType: string) => {
+    if (!replyText.trim() || sendingReply) return;
+    setSendingReply(true);
+    try {
+      const token = await getValidToken();
+      if (!token) return;
+      const resp = await fetch(`${API_URL.replace('/captures', `/submissions/${submissionId}/messages`)}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: replyText.trim(), service_type: serviceType }),
+      });
+      if (resp.ok) {
+        const newMsg = await resp.json();
+        setThreadMessages(prev => [...prev, newMsg]);
+        setReplyText('');
+        setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
+    } catch (err) {
+      console.warn('[Messages] Failed to send reply:', err);
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  const handleToggleEntered = async (sub: Submission, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newValue = !sub.entered_in_system;
+    setTogglingEnteredId(sub.id);
+
+    // Optimistic update
+    setSubmissions(prev => prev.map(s =>
+      s.id === sub.id
+        ? { ...s, entered_in_system: newValue, entered_in_system_by: newValue ? userEmail : undefined, entered_in_system_at: newValue ? new Date().toISOString() : undefined }
+        : s
+    ));
+
+    try {
+      let token = await getValidToken();
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      const patchUrl = API_URL.replace('/captures', `/submissions/${sub.id}`);
+      let response = await fetch(patchUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          service_type: sub.service_type || 'TFA',
+          entered_in_system: newValue,
+          entered_in_system_by: newValue ? userEmail : '',
+          entered_in_system_at: newValue ? new Date().toISOString() : '',
+          updated_by: userEmail,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+
+      if (response.status === 401) {
+        const newToken = await silentTokenRefresh();
+        if (newToken) {
+          response = await fetch(patchUrl, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${newToken}`,
+            },
+            body: JSON.stringify({
+              service_type: sub.service_type || 'TFA',
+              entered_in_system: newValue,
+              entered_in_system_by: newValue ? userEmail : '',
+              entered_in_system_at: newValue ? new Date().toISOString() : '',
+              updated_by: userEmail,
+              updated_at: new Date().toISOString(),
+            }),
+          });
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to update');
+      }
+    } catch {
+      // Revert on failure
+      setSubmissions(prev => prev.map(s =>
+        s.id === sub.id ? { ...s, entered_in_system: sub.entered_in_system } : s
+      ));
+    } finally {
+      setTogglingEnteredId(null);
+    }
+  };
+
+  // Load submissions + unread counts immediately when authenticated (for Activity tab messages + badge)
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchSubmissions();
+      // Also tell background to refresh badge
+      chrome.runtime.sendMessage({ type: 'REFRESH_UNREAD' }).catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const formatTime = (isoString: string | null) => {
     if (!isoString) return 'Never';
@@ -677,6 +847,47 @@ export const PopupApp: React.FC = () => {
       </div>
 
       <div style={styles.content}>
+        {/* Auth Warning Banner */}
+        {showAuthWarning && authError && (
+          <div style={{
+            backgroundColor: '#fef3c7',
+            border: '1px solid #f59e0b',
+            borderRadius: '8px',
+            padding: '12px',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <div style={{ fontSize: '20px' }}>⚠️</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#92400e', marginBottom: '2px' }}>
+                Authentication Required
+              </div>
+              <div style={{ fontSize: '11px', color: '#78350f' }}>
+                {authError}
+              </div>
+            </div>
+            <button
+              onClick={handleAuthenticate}
+              disabled={isAuthenticating}
+              style={{
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: isAuthenticating ? 'not-allowed' : 'pointer',
+                opacity: isAuthenticating ? 0.7 : 1,
+              }}
+            >
+              {isAuthenticating ? 'Signing in...' : 'Sign In'}
+            </button>
+          </div>
+        )}
+
         {/* Auth Section */}
         {!isAuthenticated ? (
           <div style={{ ...styles.card, textAlign: 'center' }}>
@@ -767,81 +978,178 @@ export const PopupApp: React.FC = () => {
               </button>
             </div>
 
-            <div style={styles.statGrid}>
-              <div style={styles.statCard}>
-                <div style={styles.statValue('#667eea')}>{stats.totalCaptures}</div>
-                <div style={styles.statLabel}>Total</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statValue('#10b981')}>{stats.successfulCaptures}</div>
-                <div style={styles.statLabel}>Success</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statValue('#f59e0b')}>
-                  {stats.totalCaptures > 0 ? Math.round((stats.successfulCaptures / stats.totalCaptures) * 100) : 0}%
-                </div>
-                <div style={styles.statLabel}>Rate</div>
-              </div>
-            </div>
-
+            {/* Messages */}
             <div style={styles.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>Recent Activity</span>
-                {stats.recentLogs.length > 0 && (
-                  <button
-                    onClick={clearStats}
-                    style={{ fontSize: '10px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    Clear
-                  </button>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>Messages</span>
+                  {Object.values(unreadCounts).reduce((a, b) => a + b, 0) > 0 && (
+                    <span style={{
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      borderRadius: '10px',
+                      padding: '1px 7px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                    }}>
+                      {Object.values(unreadCounts).reduce((a, b) => a + b, 0)}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={fetchSubmissions}
+                  disabled={loadingSubmissions}
+                  style={{ fontSize: '10px', color: '#667eea', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  {loadingSubmissions ? '...' : 'Refresh'}
+                </button>
               </div>
-              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                {stats.recentLogs.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px', color: '#9ca3af', fontSize: '13px' }}>
-                    No recent activity
-                  </div>
-                ) : (
-                  stats.recentLogs.slice(0, 5).map((log, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        padding: '8px 0',
-                        borderBottom: index < Math.min(4, stats.recentLogs.length - 1) ? '1px solid #f3f4f6' : 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          backgroundColor: log.status === 'success' ? '#10b981' : '#ef4444',
-                          flexShrink: 0,
-                        }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '12px', color: '#374151' }}>
-                          {log.clientId ? `Client ${log.clientId}` : `${log.fieldCount} fields`}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#9ca3af' }}>{formatTime(log.timestamp)}</div>
-                      </div>
+              {(() => {
+                const unreadSubs = submissions.filter(s => (unreadCounts[s.id] || 0) > 0);
+                if (loadingSubmissions && submissions.length === 0) {
+                  return <div style={{ textAlign: 'center', padding: '16px', color: '#9ca3af', fontSize: '12px' }}>Loading...</div>;
+                }
+                if (unreadSubs.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '16px', color: '#9ca3af', fontSize: '12px' }}>
+                      <div style={{ fontSize: '20px', marginBottom: '4px' }}>✓</div>
+                      All caught up — no new messages
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div style={styles.card}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '8px' }}>
-                How it works
-              </div>
-              <div style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.5 }}>
-                When you click <strong>Save &amp; Exit</strong> on a WellSky service, you'll be prompted to submit
-                it as a TFA record. Use the <strong>Manual Entry</strong> tab to add TFA records retroactively.
-              </div>
+                  );
+                }
+                return (
+                  <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                    {unreadSubs.map(sub => {
+                      const isExpanded = expandedMessagesSub === sub.id;
+                      return (
+                        <div key={sub.id} style={{
+                          padding: '8px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          marginBottom: '6px',
+                        }}>
+                          <div
+                            onClick={() => {
+                              if (isExpanded) {
+                                setExpandedMessagesSub(null);
+                                setThreadMessages([]);
+                              } else {
+                                setExpandedMessagesSub(sub.id);
+                                fetchThreadMessages(sub.id);
+                              }
+                            }}
+                            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          >
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {sub.client_name || sub.client_id || 'Unknown Client'}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '1px' }}>
+                                {sub.vendor || 'No vendor'} · {formatTime(sub.captured_at_utc)}
+                              </div>
+                            </div>
+                            <span style={{
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              borderRadius: '8px',
+                              padding: '1px 6px',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              flexShrink: 0,
+                              marginLeft: '8px',
+                            }}>
+                              {unreadCounts[sub.id]} new
+                            </span>
+                          </div>
+                          {isExpanded && (
+                            <div style={{ marginTop: '8px', borderTop: '1px solid #fecaca', paddingTop: '6px' }}>
+                              {threadLoading ? (
+                                <div style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', padding: '6px 0' }}>Loading...</div>
+                              ) : threadMessages.length === 0 ? (
+                                <div style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', padding: '6px 0' }}>No messages</div>
+                              ) : (
+                                <div style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '6px' }}>
+                                  {threadMessages.map(msg => {
+                                    const isMine = msg.sentBy === userEmail;
+                                    return (
+                                      <div key={msg.id} style={{
+                                        display: 'flex',
+                                        justifyContent: isMine ? 'flex-end' : 'flex-start',
+                                        marginBottom: '4px',
+                                      }}>
+                                        <div style={{
+                                          maxWidth: '80%',
+                                          padding: '4px 8px',
+                                          borderRadius: '8px',
+                                          backgroundColor: isMine ? '#667eea' : '#fff',
+                                          color: isMine ? 'white' : '#1f2937',
+                                          fontSize: '10px',
+                                          border: isMine ? 'none' : '1px solid #e5e7eb',
+                                        }}>
+                                          {!isMine && (
+                                            <div style={{ fontSize: '9px', fontWeight: 600, marginBottom: '2px', color: '#6b7280' }}>
+                                              {msg.sentByName}
+                                            </div>
+                                          )}
+                                          <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.text}</div>
+                                          <div style={{ fontSize: '8px', opacity: 0.7, textAlign: 'right', marginTop: '2px' }}>
+                                            {new Date(msg.sentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  <div ref={threadEndRef} />
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <input
+                                  type="text"
+                                  value={replyText}
+                                  onChange={e => setReplyText(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSendReply(sub.id, sub.service_type || 'TFA');
+                                    }
+                                  }}
+                                  placeholder="Type a reply..."
+                                  style={{
+                                    flex: 1,
+                                    padding: '4px 8px',
+                                    fontSize: '10px',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: '6px',
+                                    outline: 'none',
+                                  }}
+                                />
+                                <button
+                                  onClick={() => handleSendReply(sub.id, sub.service_type || 'TFA')}
+                                  disabled={sendingReply || !replyText.trim()}
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: sendingReply ? 'wait' : 'pointer',
+                                    opacity: sendingReply || !replyText.trim() ? 0.6 : 1,
+                                  }}
+                                >
+                                  Send
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </>
         )}
@@ -915,6 +1223,16 @@ export const PopupApp: React.FC = () => {
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={styles.label}>TFA Date</label>
+                <input
+                  type="date"
+                  value={manualForm.tfaDate}
+                  onChange={(e) => setManualForm({ ...manualForm, tfaDate: e.target.value })}
+                  style={styles.input}
+                />
               </div>
 
               <div style={{ marginBottom: '12px', position: 'relative' }} ref={vendorDropdownRef}>
@@ -1128,7 +1446,7 @@ export const PopupApp: React.FC = () => {
           </form>
         )}
 
-        {/* Submissions Tab */}
+        {/* Submissions Tab (Queue) */}
         {activeTab === 'submissions' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -1159,75 +1477,298 @@ export const PopupApp: React.FC = () => {
                 <div style={{ fontSize: '12px', color: '#6b7280' }}>No submissions yet</div>
               </div>
             ) : (
-              <div style={{ ...styles.card, padding: '0', overflow: 'hidden' }}>
-                <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
-                  {submissions.map((sub) => (
+              <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                {submissions.map((sub) => {
+                  const assistanceType = sub.form_data?.assistance_type || '—';
+                  const region = sub.region || sub.form_data?.region || '—';
+                  const programCategory = sub.program_category || sub.form_data?.program_category || '—';
+                  const dateStr = formatTime(sub.captured_at_utc);
+                  const hasUnread = (unreadCounts[sub.id] || 0) > 0;
+                  const isExpanded = expandedMessagesSub === sub.id;
+                  return (
                     <div
                       key={sub.id}
-                      onClick={() => chrome.tabs.create({ url: 'https://wonderful-sand-00129870f.1.azurestaticapps.net' })}
                       style={{
+                        ...styles.card,
                         padding: '10px 12px',
-                        borderBottom: '1px solid #f3f4f6',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        cursor: 'pointer',
+                        marginBottom: '8px',
+                        border: hasUnread ? '1px solid #dc3545' : undefined,
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
+                      {/* Clickable card body — opens dashboard */}
                       <div
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          backgroundColor:
-                            sub.status === 'Complete' ? '#10b981' :
-                            sub.status === 'In Progress' ? '#f59e0b' : '#3b82f6',
-                          flexShrink: 0,
+                        onClick={async () => {
+                          const token = await getValidToken();
+                          const dashboardUrl = token 
+                            ? `${SWA_URL}#token=${encodeURIComponent(token)}`
+                            : SWA_URL;
+                          chrome.tabs.create({ url: dashboardUrl });
                         }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {sub.client_name || sub.client_id || 'Unknown'}
-                          </div>
-                          {sub.service_amount && (
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb', flexShrink: 0, marginLeft: '8px' }}>
-                              ${sub.service_amount.toFixed(2)}
-                            </div>
+                        style={{ cursor: 'pointer' }}
+                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                      >
+                      {/* Row 1: Client Name + Amount + Unread dot */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, overflow: 'hidden' }}>
+                          {hasUnread && (
+                            <span style={{
+                              width: 8, height: 8, borderRadius: '50%',
+                              backgroundColor: '#dc3545', flexShrink: 0,
+                            }} />
                           )}
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {sub.client_name || sub.client_id || 'Unknown Client'}
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {sub.vendor || 'No vendor'}
-                          </div>
-                          <div style={{
-                            fontSize: '9px',
-                            fontWeight: 600,
-                            padding: '2px 6px',
-                            borderRadius: '10px',
-                            backgroundColor:
-                              sub.status === 'Complete' ? '#d1fae5' :
-                              sub.status === 'In Progress' ? '#fef3c7' : '#dbeafe',
-                            color:
-                              sub.status === 'Complete' ? '#065f46' :
-                              sub.status === 'In Progress' ? '#92400e' : '#1e40af',
-                            flexShrink: 0,
-                            marginLeft: '8px',
-                          }}>
-                            {sub.status || 'New'}
-                          </div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669', flexShrink: 0, marginLeft: '8px' }}>
+                          {sub.service_amount != null ? `$${sub.service_amount.toFixed(2)}` : '—'}
                         </div>
                       </div>
+                      {/* Row 2: Vendor */}
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {sub.vendor || 'No vendor'}
+                      </div>
+                      {/* Row 3: Region + Program Category */}
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
+                        <div style={{
+                          fontSize: '9px',
+                          fontWeight: 600,
+                          padding: '1px 6px',
+                          borderRadius: '10px',
+                          backgroundColor: '#fef3c7',
+                          color: '#92400e',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {region}
+                        </div>
+                        <div style={{
+                          fontSize: '9px',
+                          fontWeight: 600,
+                          padding: '1px 6px',
+                          borderRadius: '10px',
+                          backgroundColor: programCategory === 'Rapid Rehousing' ? '#dbeafe' : '#d1fae5',
+                          color: programCategory === 'Rapid Rehousing' ? '#1e40af' : '#065f46',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {programCategory}
+                        </div>
+                      </div>
+                      {/* Row 4: Assistance Type + Date */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <div style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          backgroundColor: '#eef2ff',
+                          color: '#4338ca',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '60%',
+                        }}>
+                          {assistanceType}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#9ca3af', flexShrink: 0 }}>
+                          {dateStr}
+                        </div>
+                      </div>
+                      {/* Row 5: Entered in System toggle */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          borderTop: '1px solid #f3f4f6',
+                          paddingTop: '6px',
+                        }}
+                      >
+                        <div style={{ fontSize: '10px', color: '#6b7280' }}>
+                          {sub.entered_in_system
+                            ? `Entered by ${sub.entered_in_system_by || 'someone'}`
+                            : 'Not yet entered in system'}
+                        </div>
+                        <button
+                          onClick={(e) => handleToggleEntered(sub, e)}
+                          disabled={togglingEnteredId === sub.id}
+                          title={sub.entered_in_system ? 'Mark as NOT entered' : 'Mark as entered in ServicePoint / LSNDC'}
+                          style={{
+                            background: sub.entered_in_system
+                              ? 'linear-gradient(135deg, #10b981, #059669)'
+                              : '#e5e7eb',
+                            color: sub.entered_in_system ? 'white' : '#6b7280',
+                            border: 'none',
+                            borderRadius: '12px',
+                            padding: '3px 10px',
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            cursor: togglingEnteredId === sub.id ? 'wait' : 'pointer',
+                            opacity: togglingEnteredId === sub.id ? 0.6 : 1,
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {sub.entered_in_system ? '✓ Entered' : 'Mark Entered'}
+                        </button>
+                      </div>
+                      </div>{/* end clickable card body */}
+
+                      {/* Row 6: Messages toggle */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          borderTop: '1px solid #f3f4f6',
+                          paddingTop: '6px',
+                          marginTop: '6px',
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isExpanded) {
+                              setExpandedMessagesSub(null);
+                              setThreadMessages([]);
+                            } else {
+                              setExpandedMessagesSub(sub.id);
+                              fetchThreadMessages(sub.id);
+                            }
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            fontSize: '10px',
+                            color: '#667eea',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          💬 {isExpanded ? 'Hide Messages' : 'Messages'}
+                          {hasUnread && (
+                            <span style={{
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              borderRadius: '8px',
+                              padding: '0 5px',
+                              fontSize: '9px',
+                              fontWeight: 700,
+                            }}>
+                              {unreadCounts[sub.id]}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Expanded message thread */}
+                      {isExpanded && (
+                        <div style={{
+                          borderTop: '1px solid #e5e7eb',
+                          marginTop: '6px',
+                          paddingTop: '6px',
+                        }}>
+                          {threadLoading ? (
+                            <div style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', padding: '8px 0' }}>Loading messages...</div>
+                          ) : threadMessages.length === 0 ? (
+                            <div style={{ fontSize: '10px', color: '#9ca3af', textAlign: 'center', padding: '8px 0' }}>No messages yet</div>
+                          ) : (
+                            <div style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '6px' }}>
+                              {threadMessages.map((msg) => {
+                                const isMine = msg.sentBy === userEmail;
+                                return (
+                                  <div key={msg.id} style={{
+                                    display: 'flex',
+                                    justifyContent: isMine ? 'flex-end' : 'flex-start',
+                                    marginBottom: '4px',
+                                  }}>
+                                    <div style={{
+                                      maxWidth: '80%',
+                                      padding: '4px 8px',
+                                      borderRadius: '8px',
+                                      backgroundColor: isMine ? '#667eea' : '#f3f4f6',
+                                      color: isMine ? 'white' : '#1f2937',
+                                      fontSize: '10px',
+                                    }}>
+                                      {!isMine && (
+                                        <div style={{ fontSize: '9px', fontWeight: 600, marginBottom: '2px', color: isMine ? '#e0e7ff' : '#6b7280' }}>
+                                          {msg.sentByName}
+                                        </div>
+                                      )}
+                                      <div>{msg.text}</div>
+                                      <div style={{ fontSize: '8px', opacity: 0.7, textAlign: 'right', marginTop: '2px' }}>
+                                        {new Date(msg.sentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              <div ref={threadEndRef} />
+                            </div>
+                          )}
+                          {/* Reply input */}
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <input
+                              type="text"
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSendReply(sub.id, sub.service_type || 'TFA');
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              placeholder="Type a reply..."
+                              style={{
+                                flex: 1,
+                                padding: '4px 8px',
+                                fontSize: '10px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '6px',
+                                outline: 'none',
+                              }}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendReply(sub.id, sub.service_type || 'TFA');
+                              }}
+                              disabled={sendingReply || !replyText.trim()}
+                              style={{
+                                padding: '4px 10px',
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: sendingReply ? 'wait' : 'pointer',
+                                opacity: sendingReply || !replyText.trim() ? 0.6 : 1,
+                              }}
+                            >
+                              Send
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             )}
 
             <div
-              onClick={() => chrome.tabs.create({ url: 'https://wonderful-sand-00129870f.1.azurestaticapps.net' })}
+              onClick={async () => {
+                const token = await getValidToken();
+                const dashboardUrl = token 
+                  ? `${SWA_URL}#token=${encodeURIComponent(token)}`
+                  : SWA_URL;
+                chrome.tabs.create({ url: dashboardUrl });
+              }}
               style={{ marginTop: '10px', fontSize: '11px', color: '#667eea', textAlign: 'center', cursor: 'pointer', textDecoration: 'underline' }}
             >
               Open full dashboard →

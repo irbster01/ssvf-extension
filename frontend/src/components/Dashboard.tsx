@@ -3,11 +3,14 @@ import { useMsal } from '@azure/msal-react';
 import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import { Capacitor } from '@capacitor/core';
 import { Submission, SubmissionStatus } from '../types';
-import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor } from '../api/submissions';
+import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor, fetchUnreadCount } from '../api/submissions';
 import { nativeAuth } from '../auth/nativeAuth';
+import { useSignalR } from '../hooks/useSignalR';
 import EditModal from './EditModal';
+import MessageModal from './MessageModal';
 import PurchaseOrderModal, { PurchaseOrderData } from './PurchaseOrderModal';
 import SubmitTFA from './SubmitTFA';
+import AnalyticsModal from './AnalyticsModal';
 
 interface Toast {
   id: number;
@@ -24,12 +27,17 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
   const [poSubmission, setPoSubmission] = useState<Submission | null>(null);
+  const [messageSubmission, setMessageSubmission] = useState<Submission | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   const addToast = useCallback((type: Toast['type'], message: string) => {
     const id = ++toastIdRef.current;
@@ -51,6 +59,23 @@ function Dashboard() {
   const currentUsername = isNative ? (nativeAuth.getAccount()?.username || '') : (accounts[0]?.username || '');
 
   const getToken = useCallback(async (): Promise<string> => {
+    // Check for Chrome extension SSO token first
+    const extensionToken = sessionStorage.getItem('extension_sso_token');
+    if (extensionToken) {
+      // Validate token is not expired (basic check)
+      try {
+        const payload = JSON.parse(atob(extensionToken.split('.')[1]));
+        const exp = payload.exp * 1000;
+        if (exp > Date.now()) {
+          return extensionToken;
+        } else {
+          sessionStorage.removeItem('extension_sso_token');
+        }
+      } catch {
+        sessionStorage.removeItem('extension_sso_token');
+      }
+    }
+
     if (isNative) {
       // Use native auth service
       let token = nativeAuth.getAccessToken();
@@ -124,6 +149,51 @@ function Dashboard() {
       }
     })();
   }, [getToken]);
+
+  // Fetch unread message counts
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        const data = await fetchUnreadCount(token);
+        setUnreadCounts(data.perSubmission || {});
+      } catch {
+        // Non-critical
+        console.warn('Could not load unread counts');
+      }
+    })();
+  }, [getToken]);
+
+  const handleUnreadChange = useCallback((submissionId: string, unreadCount: number) => {
+    setUnreadCounts(prev => {
+      const next = { ...prev };
+      if (unreadCount === 0) {
+        delete next[submissionId];
+      } else {
+        next[submissionId] = unreadCount;
+      }
+      return next;
+    });
+  }, []);
+
+  // Real-time message updates via SignalR
+  const handleSignalRUnread = useCallback((submissionId: string, delta: number) => {
+    setUnreadCounts(prev => ({
+      ...prev,
+      [submissionId]: (prev[submissionId] || 0) + delta,
+    }));
+  }, []);
+
+  const handleSignalRNewMessage = useCallback(() => {
+    addToast('info', 'New message received');
+  }, [addToast]);
+
+  useSignalR({
+    getToken,
+    currentUserEmail: currentUsername,
+    onNewMessage: handleSignalRNewMessage,
+    onUnreadCountUpdate: handleSignalRUnread,
+  });
 
   const handleStatusChange = async (submission: Submission, newStatus: SubmissionStatus) => {
     try {
@@ -228,9 +298,84 @@ function Dashboard() {
     }
   }, [getToken, currentUsername]);
 
-  const filteredSubmissions = statusFilter === 'all'
-    ? submissions
-    : submissions.filter(s => s.status === statusFilter);
+  const filteredSubmissions = submissions.filter(s => {
+    if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+    if (dateFrom) {
+      const captured = new Date(s.captured_at_utc);
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (captured < from) return false;
+    }
+    if (dateTo) {
+      const captured = new Date(s.captured_at_utc);
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (captured > to) return false;
+    }
+    return true;
+  });
+
+  const exportCSV = () => {
+    const csvField = (val: unknown): string => {
+      if (val === undefined || val === null) return '';
+      const str = String(val);
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    };
+
+    const headers = [
+      'Date Captured',
+      'TFA Date',
+      'Client ID',
+      'Client Name',
+      'Region',
+      'Program Category',
+      'Assistance Type',
+      'Vendor',
+      'Amount',
+      'Status',
+      'PO Number',
+      'Entered in System',
+      'Entered By',
+      'Entered At',
+      'Notes',
+    ];
+
+    const rows = filteredSubmissions.map(s => [
+      csvField(formatDate(s.captured_at_utc)),
+      csvField(s.tfa_date ? formatDate(s.tfa_date) : ''),
+      csvField(s.client_id),
+      csvField(s.client_name),
+      csvField(s.region),
+      csvField(s.program_category),
+      csvField(s.form_data?.assistance_type as string),
+      csvField(s.vendor),
+      csvField(s.service_amount !== undefined && s.service_amount !== null ? s.service_amount.toFixed(2) : ''),
+      csvField(s.status),
+      csvField(s.po_number),
+      csvField(s.entered_in_system ? 'Yes' : 'No'),
+      csvField(s.entered_in_system_by),
+      csvField(s.entered_in_system_at ? formatDate(s.entered_in_system_at) : ''),
+      csvField(s.notes),
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+
+    // Build a descriptive filename
+    const fromLabel = dateFrom ? dateFrom : 'all';
+    const toLabel = dateTo ? dateTo : 'all';
+    const statusLabel = statusFilter !== 'all' ? `-${statusFilter}` : '';
+    link.download = `SSVF-TFA-Report_${fromLabel}_to_${toLabel}${statusLabel}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const stats = {
     new: submissions.filter(s => s.status === 'New').length,
@@ -242,12 +387,15 @@ function Dashboard() {
     const d = new Date(dateStr);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    const yy = String(d.getFullYear()).slice(-2);
-    const h = d.getHours();
-    const ampm = h >= 12 ? 'p' : 'a';
-    const hr = h % 12 || 12;
-    const min = String(d.getMinutes()).padStart(2, '0');
-    return `${mm}/${dd}/${yy} ${hr}:${min}${ampm}`;
+    const yyyy = d.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+  };
+
+  const abbreviateProgram = (prog?: string) => {
+    if (!prog) return '-';
+    if (prog === 'Homeless Prevention') return 'HP';
+    if (prog === 'Rapid Rehousing') return 'RR';
+    return prog;
   };
 
   const formatAmount = (amount?: number) => {
@@ -274,10 +422,50 @@ function Dashboard() {
               <option value="New">New ({stats.new})</option>
               <option value="Submitted">Submitted ({stats.submitted})</option>
             </select>
+            <span className="filter-divider" />
+            <label htmlFor="date-from">From:</label>
+            <input
+              id="date-from"
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="date-input"
+            />
+            <label htmlFor="date-to">To:</label>
+            <input
+              id="date-to"
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="date-input"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                className="btn btn-small btn-clear"
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                title="Clear date filter"
+              >
+                Clear
+              </button>
+            )}
           </div>
-          <button className="btn btn-primary" onClick={loadSubmissions} aria-label="Refresh submissions">
-            Refresh
-          </button>
+          <div className="toolbar-actions">
+            <span className="export-count">{filteredSubmissions.length} record{filteredSubmissions.length !== 1 ? 's' : ''}</span>
+            <button
+              className="btn btn-secondary"
+              onClick={exportCSV}
+              disabled={filteredSubmissions.length === 0}
+              title={filteredSubmissions.length === 0 ? 'No records to export' : `Export ${filteredSubmissions.length} records to CSV`}
+            >
+              Export CSV
+            </button>
+            <button className="btn btn-secondary" onClick={() => setShowAnalytics(true)} aria-label="View analytics">
+              Analytics
+            </button>
+            <button className="btn btn-primary" onClick={loadSubmissions} aria-label="Refresh submissions">
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Desktop table */}
@@ -305,7 +493,7 @@ function Dashboard() {
               </tr>
             ) : (
               filteredSubmissions.map(submission => (
-                <tr key={submission.id}>
+                <tr key={submission.id} className={submission.entered_in_system ? 'row-entered' : 'row-not-entered'}>
                   <td>
                     <select
                       className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
@@ -325,7 +513,7 @@ function Dashboard() {
                       ))}
                     </select>
                   </td>
-                  <td className="cell-date">{formatDate(submission.captured_at_utc)}</td>
+                  <td className="cell-date">{formatDate(submission.tfa_date || submission.captured_at_utc)}</td>
                   <td title={`${submission.client_name || ''} (${submission.client_id || ''})`}>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}><strong>{submission.client_name || '-'}</strong></div>
                     <div style={{ fontSize: '0.8em', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -333,7 +521,7 @@ function Dashboard() {
                     </div>
                   </td>
                   <td>{submission.region || '-'}</td>
-                  <td>{submission.program_category || '-'}</td>
+                  <td title={submission.program_category || ''}>{abbreviateProgram(submission.program_category)}</td>
                   <td title={submission.vendor || ''}>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{submission.vendor || '-'}</div>
                   </td>
@@ -348,7 +536,7 @@ function Dashboard() {
                   <td>
                     {submission.attachments && submission.attachments.length > 0 ? (
                       <span title={submission.attachments.map(a => a.fileName).join(', ')} style={{ cursor: 'help' }}>
-                        📎{submission.attachments.length}
+                        📎
                       </span>
                     ) : (
                       <span style={{ color: '#ccc' }}>—</span>
@@ -371,6 +559,19 @@ function Dashboard() {
                       >
                         Edit
                       </button>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => setMessageSubmission(submission)}
+                        aria-label={`Messages for ${submission.client_name || submission.client_id || 'unknown'}`}
+                        style={{
+                          backgroundColor: unreadCounts[submission.id] > 0 ? '#fef2f2' : '#f0f9ff',
+                          color: unreadCounts[submission.id] > 0 ? '#dc2626' : '#0369a1',
+                          border: `1px solid ${unreadCounts[submission.id] > 0 ? '#fca5a5' : '#bae6fd'}`,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {unreadCounts[submission.id] > 0 ? `Msg(${unreadCounts[submission.id]})` : 'Msg'}
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -385,7 +586,7 @@ function Dashboard() {
             <div className="mobile-card-empty">No submissions found</div>
           ) : (
             filteredSubmissions.map(submission => (
-              <article key={submission.id} className="mobile-card" role="listitem">
+              <article key={submission.id} className={`mobile-card${submission.entered_in_system ? ' card-entered' : ''}`} role="listitem">
                 <div className="mobile-card-top">
                   <select
                     className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
@@ -406,7 +607,7 @@ function Dashboard() {
                 <div className="mobile-card-details">
                   <div className="mobile-card-detail">
                     <span className="mobile-card-label">Date</span>
-                    <span>{formatDate(submission.captured_at_utc)}</span>
+                    <span>{formatDate(submission.tfa_date || submission.captured_at_utc)}</span>
                   </div>
                   <div className="mobile-card-detail">
                     <span className="mobile-card-label">Region</span>
@@ -414,7 +615,7 @@ function Dashboard() {
                   </div>
                   <div className="mobile-card-detail">
                     <span className="mobile-card-label">Program</span>
-                    <span>{submission.program_category || '-'}</span>
+                    <span>{abbreviateProgram(submission.program_category)}</span>
                   </div>
                   <div className="mobile-card-detail">
                     <span className="mobile-card-label">Vendor</span>
@@ -429,7 +630,7 @@ function Dashboard() {
                   {submission.attachments && submission.attachments.length > 0 && (
                     <div className="mobile-card-detail">
                       <span className="mobile-card-label">Files</span>
-                      <span>📎 {submission.attachments.length}</span>
+                      <span>📎</span>
                     </div>
                   )}
                 </div>
@@ -451,6 +652,20 @@ function Dashboard() {
                   >
                     Edit
                   </button>
+                  <button
+                    className="btn mobile-card-edit"
+                    onClick={() => setMessageSubmission(submission)}
+                    aria-label={`Messages for ${submission.client_name || submission.client_id || 'unknown'}`}
+                    style={{
+                      flex: 1,
+                      backgroundColor: unreadCounts[submission.id] > 0 ? '#fef2f2' : '#f0f9ff',
+                      color: unreadCounts[submission.id] > 0 ? '#dc2626' : '#0369a1',
+                      border: `1px solid ${unreadCounts[submission.id] > 0 ? '#fca5a5' : '#bae6fd'}`,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {unreadCounts[submission.id] > 0 ? `Msg(${unreadCounts[submission.id]})` : 'Msg'}
+                  </button>
                 </div>
               </article>
             ))
@@ -463,10 +678,23 @@ function Dashboard() {
           submission={editingSubmission}
           vendors={vendors}
           vendorsLoading={vendorsLoading}
+          currentUsername={currentUsername}
           onSave={handleSaveEdit}
           onClose={() => setEditingSubmission(null)}
           onUploadFile={handleUploadFile}
           onDownloadFile={handleDownloadFile}
+        />
+      )}
+
+      {messageSubmission && (
+        <MessageModal
+          submissionId={messageSubmission.id}
+          serviceType={messageSubmission.service_type}
+          clientName={messageSubmission.client_name}
+          currentUserEmail={currentUsername}
+          getToken={getToken}
+          onClose={() => setMessageSubmission(null)}
+          onUnreadChange={handleUnreadChange}
         />
       )}
 
@@ -490,6 +718,14 @@ function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* Analytics Modal */}
+      {showAnalytics && (
+        <AnalyticsModal
+          submissions={submissions}
+          onClose={() => setShowAnalytics(false)}
+        />
+      )}
     </>
   );
 }

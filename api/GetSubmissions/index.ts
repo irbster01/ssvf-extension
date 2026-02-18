@@ -13,9 +13,16 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5173',  // Vite dev
 ];
 
+function isAllowedOrigin(origin: string): boolean {
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  // Allow Chrome extension popup origins
+  if (origin.startsWith('chrome-extension://')) return true;
+  return false;
+}
+
 function getCorsHeaders(origin: string) {
   return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0],
     'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Credentials': 'true',
@@ -178,7 +185,7 @@ export async function UpdateSubmission(
     const editableFields: (keyof ServiceCapture)[] = [
       'client_id', 'client_name', 'vendor', 'vendor_id',
       'service_amount', 'region', 'program_category', 'status', 'notes', 'updated_by', 'updated_at',
-      'po_number'
+      'po_number', 'entered_in_system', 'entered_in_system_by', 'entered_in_system_at'
     ];
 
     for (const field of editableFields) {

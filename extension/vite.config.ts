@@ -23,6 +23,16 @@ export default defineConfig({
         });
         console.log('✓ Content script built with esbuild');
 
+        // Build background service worker with esbuild
+        await build({
+          entryPoints: ['src/background/serviceWorker.ts'],
+          bundle: true,
+          format: 'esm',
+          outfile: 'dist/background/serviceWorker.js',
+          minify: true,
+        });
+        console.log('✓ Background service worker built with esbuild');
+
         // Copy manifest
         copyFileSync('manifest.json', 'dist/manifest.json');
         

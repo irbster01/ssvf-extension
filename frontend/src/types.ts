@@ -27,6 +27,8 @@ export interface Submission {
   // SSVF program fields
   region?: 'Shreveport' | 'Monroe' | 'Arkansas';
   program_category?: 'Homeless Prevention' | 'Rapid Rehousing';
+  // TFA date (manually entered)
+  tfa_date?: string;
   // Purchase Order
   po_number?: string;
   // Workflow status
@@ -34,6 +36,28 @@ export interface Submission {
   notes?: string;
   updated_by?: string;
   updated_at?: string;
+  // Documented / entered into ServicePoint or LSNDC
+  entered_in_system?: boolean;
+  entered_in_system_by?: string;
+  entered_in_system_at?: string;
   // Attachments
   attachments?: AttachmentMeta[];
+}
+
+// ============ Internal Messaging ============
+
+export interface Message {
+  id: string;
+  submissionId: string;
+  service_type: string;
+  text: string;
+  sentBy: string;
+  sentByName?: string;
+  sentAt: string;
+  readBy: string[];
+}
+
+export interface UnreadCountResponse {
+  totalUnread: number;
+  perSubmission: Record<string, number>;
 }

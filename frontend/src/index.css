@@ -72,8 +72,8 @@ header h1 {
 }
 
 .btn-small {
-  padding: 4px 8px;
-  font-size: 0.85rem;
+  padding: 3px 6px;
+  font-size: 0.78rem;
 }
 
 .login-container {
@@ -104,6 +104,59 @@ header h1 {
   padding: 16px;
   background: #fafafa;
   border-bottom: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.export-count {
+  font-size: 0.82rem;
+  color: #888;
+  white-space: nowrap;
+}
+
+.filter-divider {
+  display: inline-block;
+  width: 1px;
+  height: 22px;
+  background: #ddd;
+  margin: 0 4px;
+  vertical-align: middle;
+}
+
+.date-input {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #333;
+  background: white;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.12);
+}
+
+.btn-clear {
+  background: transparent;
+  color: #999;
+  border: 1px solid #ddd;
+  font-size: 0.78rem;
+}
+
+.btn-clear:hover {
+  color: #d9534f;
+  border-color: #d9534f;
+  background: #fff5f5;
+  opacity: 1;
 }
 
 .filters {
@@ -137,25 +190,25 @@ header h1 {
 
 /* 10-column layout: Status | Date | Client | Region | Program | Vendor | Amt | PO# | Files | Actions */
 .desktop-table th:nth-child(1),
-.desktop-table td:nth-child(1) { width: 7%; }    /* Status */
+.desktop-table td:nth-child(1) { width: 6%; }    /* Status */
 .desktop-table th:nth-child(2),
-.desktop-table td:nth-child(2) { width: 11%; }   /* Date */
+.desktop-table td:nth-child(2) { width: 9%; }    /* Date */
 .desktop-table th:nth-child(3),
-.desktop-table td:nth-child(3) { width: 18%; }   /* Client */
+.desktop-table td:nth-child(3) { width: 15%; }   /* Client */
 .desktop-table th:nth-child(4),
 .desktop-table td:nth-child(4) { width: 7%; }    /* Region */
 .desktop-table th:nth-child(5),
-.desktop-table td:nth-child(5) { width: 9%; }    /* Program */
+.desktop-table td:nth-child(5) { width: 5%; }    /* Program */
 .desktop-table th:nth-child(6),
-.desktop-table td:nth-child(6) { width: 18%; }   /* Vendor */
+.desktop-table td:nth-child(6) { width: 16%; }   /* Vendor */
 .desktop-table th:nth-child(7),
 .desktop-table td:nth-child(7) { width: 7%; }    /* Amt */
 .desktop-table th:nth-child(8),
 .desktop-table td:nth-child(8) { width: 8%; }    /* PO# */
 .desktop-table th:nth-child(9),
-.desktop-table td:nth-child(9) { width: 5%; }    /* Files */
+.desktop-table td:nth-child(9) { width: 4%; }    /* Files */
 .desktop-table th:nth-child(10),
-.desktop-table td:nth-child(10) { width: 10%; }  /* Actions */
+.desktop-table td:nth-child(10) { width: 13%; overflow: visible; }  /* Actions */
 
 th, td {
   padding: 5px 6px;
@@ -177,6 +230,58 @@ tr:hover {
   background: #f8f9fa;
 }
 
+tr.row-not-entered {
+  border-left: 3px solid #e8916e;
+}
+
+tr.row-not-entered td:first-child {
+  padding-left: 9px;
+}
+
+tr.row-entered {
+  border-left: 3px solid #10b981;
+}
+
+tr.row-entered td:first-child {
+  padding-left: 9px; /* compensate for 3px border */
+}
+
+.entered-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: #6b7280;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+}
+
+.entered-indicator .entered-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e8916e;
+  box-shadow: 0 0 3px rgba(232, 145, 110, 0.3);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.entered-indicator.is-entered .entered-dot {
+  background: #10b981;
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
+}
+
+.entered-indicator .entered-label {
+  opacity: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.entered-indicator:hover .entered-label {
+  opacity: 1;
+}
+
 /* Date & Actions columns — prevent wrapping / alignment issues */
 .cell-date {
   white-space: nowrap;
@@ -188,7 +293,7 @@ tr:hover {
 
 .actions-wrap {
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -830,7 +935,11 @@ tr:hover {
   padding: 20px;
   margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  border-left: 4px solid #e0e0e0;
+  border-left: 4px solid #e8916e;
+}
+
+.mobile-card.card-entered {
+  border-left-color: #10b981;
 }
 
 .mobile-card-top {
@@ -996,8 +1105,17 @@ tr:hover {
     padding: 16px;
   }
 
+  .toolbar .filters {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
   .toolbar .btn {
-    width: 100%;
     padding: 12px;
     font-size: 1rem;
   }

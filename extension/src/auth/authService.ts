@@ -1,8 +1,8 @@
 // Chrome extension OAuth2 authentication with Microsoft Entra ID
 // Uses chrome.identity.launchWebAuthFlow for proper extension support
 
-const CLIENT_ID = '848ba96c-9617-48c7-b8fd-e22c4388fab6';
-const TENANT_ID = '38c1626e-b75d-40a6-b21b-0aae1191c730';
+import { CLIENT_ID, TENANT_ID } from '../config';
+
 const REDIRECT_URL = chrome.identity.getRedirectURL();
 const SCOPES = ['openid', 'profile', 'email', 'User.Read'];
 
@@ -203,7 +203,6 @@ export async function silentTokenRefresh(): Promise<string | null> {
       },
       async (redirectUrl) => {
         if (chrome.runtime.lastError || !redirectUrl) {
-          console.log('[Auth] Silent refresh failed, user needs to sign in again');
           resolve(null);
           return;
         }
@@ -216,7 +215,6 @@ export async function silentTokenRefresh(): Promise<string | null> {
         
         // Update stored token
         await chrome.storage.local.set({ authToken: accessToken });
-        console.log('[Auth] Token refreshed silently');
         resolve(accessToken);
       }
     );
@@ -243,7 +241,6 @@ export async function getValidToken(): Promise<string | null> {
       }
 
       // Token expired — try silent refresh
-      console.log('[Auth] Stored token expired, attempting silent refresh…');
       const refreshed = await silentTokenRefresh();
       resolve(refreshed);
     });

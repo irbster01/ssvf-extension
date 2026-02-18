@@ -3,6 +3,7 @@ import { CosmosClient, Container } from '@azure/cosmos';
 // Singleton pattern for connection reuse
 let client: CosmosClient | null = null;
 let container: Container | null = null;
+let messagesContainer: Container | null = null;
 
 export interface CosmosConfig {
   endpoint: string;
@@ -55,6 +56,40 @@ export async function getContainer(): Promise<Container> {
 
   container = cont;
   return container;
+}
+
+/**
+ * Get or create the messages container (singleton)
+ * Partition key: /submissionId for per-submission threads
+ */
+export async function getMessagesContainer(): Promise<Container> {
+  if (messagesContainer) {
+    return messagesContainer;
+  }
+
+  const config = getConfig();
+
+  if (!client) {
+    client = new CosmosClient({
+      endpoint: config.endpoint,
+      key: config.key,
+    });
+  }
+
+  const { database } = await client.databases.createIfNotExists({
+    id: config.databaseId,
+  });
+
+  const messagesContainerId = process.env.COSMOS_MESSAGES_CONTAINER || 'messages';
+
+  const { container: cont } = await database.containers.createIfNotExists({
+    id: messagesContainerId,
+    partitionKey: { paths: ['/submissionId'] },
+    defaultTtl: -1,
+  });
+
+  messagesContainer = cont;
+  return messagesContainer;
 }
 
 /**
@@ -171,6 +206,8 @@ export interface ServiceCapture {
   // SSVF program fields
   region?: 'Shreveport' | 'Monroe' | 'Arkansas';
   program_category?: 'Homeless Prevention' | 'Rapid Rehousing';
+  // TFA date (manually entered)
+  tfa_date?: string;
   // Purchase Order
   po_number?: string;
   // Workflow status fields
@@ -178,6 +215,10 @@ export interface ServiceCapture {
   notes?: string;
   updated_by?: string;
   updated_at?: string;
+  // Documented / entered into ServicePoint or LSNDC
+  entered_in_system?: boolean;
+  entered_in_system_by?: string;
+  entered_in_system_at?: string;
   // Attachments
   attachments?: {
     blobName: string;
