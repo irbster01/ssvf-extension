@@ -13,7 +13,7 @@ interface EditModalProps {
   onDownloadFile: (blobName: string) => Promise<void>;
 }
 
-const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'Submitted'];
+const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'Corrections', 'In Review', 'Submitted'];
 const REGION_OPTIONS = ['Shreveport', 'Monroe', 'Arkansas'] as const;
 const PROGRAM_OPTIONS = ['Homeless Prevention', 'Rapid Rehousing'] as const;
 

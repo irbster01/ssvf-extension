@@ -233,6 +233,53 @@ export async function getVendors(): Promise<NetSuiteVendor[]> {
 }
 
 /**
+ * GL Account record returned from NetSuite.
+ */
+export interface NetSuiteAccount {
+  id: string;
+  number: string;
+  name: string;
+}
+
+/**
+ * Fetch expense accounts from NetSuite (cached per function app instance).
+ * Filters to accounts of type "Expense" that are active.
+ */
+let accountCache: { accounts: NetSuiteAccount[]; fetchedAt: number } | null = null;
+const ACCOUNT_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+export async function getAccounts(): Promise<NetSuiteAccount[]> {
+  if (accountCache && Date.now() - accountCache.fetchedAt < ACCOUNT_CACHE_TTL) {
+    return accountCache.accounts;
+  }
+
+  const allAccounts: NetSuiteAccount[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await suiteQL(
+      `SELECT id, acctnumber, acctname, accttype FROM account WHERE isinactive = 'F' ORDER BY acctnumber`,
+      pageSize,
+      offset,
+    );
+    for (const a of result.items) {
+      allAccounts.push({
+        id: String(a.id),
+        number: a.acctnumber || '',
+        name: a.acctname || '',
+      });
+    }
+    hasMore = result.hasMore;
+    offset += pageSize;
+  }
+
+  accountCache = { accounts: allAccounts, fetchedAt: Date.now() };
+  return allAccounts;
+}
+
+/**
  * Test connectivity by fetching account metadata.
  */
 export async function testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
@@ -269,7 +316,10 @@ export async function testConnection(): Promise<{ success: boolean; message: str
 
 /**
  * Build a NetSuite Purchase Order payload from our submission data.
- * This creates the PO in "dry run" mode (returns payload without posting) when dryRun=true.
+ *
+ * Uses the "expense" sublist (not "item") so the GL account can be set directly.
+ * NetSuite REST API ignores the `account` field on item-sublist lines for NonInvtPart items,
+ * so the expense sublist is the only reliable way to control the GL account.
  */
 export interface POInput {
   vendorName: string;
@@ -281,14 +331,18 @@ export interface POInput {
   programCategory: string;
   amount: number;
   memo: string;
+  tfaNotes: string;
   // Custom body fields for the SSVF PO form
-  clientTypeId?: string;              // custbody8: 1=Rapid Rehousing, 2=Homeless Prevention
+  clientTypeId?: string;              // custbody8: 1=Rapid Rehousing, 2=Homeless Prevention (NetSuite's internal list)
+  clientCategoryId?: string;           // custbody13: 1=Homeless Prevention (Cat1), 2=Rapid Rehousing (Cat2)
   financialAssistanceTypeId?: string; // custbody11: 1-10 list values
   assistanceMonthId?: string;         // custbody12: 1=January … 12=December
   lineItems: Array<{
-    itemId: string;
+    itemId: string;         // Kept for reference / item name in description
+    itemName?: string;      // Human-readable item name (e.g. "Rental Assistance")
     departmentId: string;
     classId: string;
+    accountId?: string;     // GL expense account (now used on expense sublist)
     description: string;
     quantity: number;
     rate: number;
@@ -304,26 +358,31 @@ export function buildPurchaseOrderPayload(input: POInput) {
     entity: input.vendorId ? { id: input.vendorId } : { name: input.vendorName },
     // Subsidiary: "Volunteers of America North Louisiana" (id 14)
     subsidiary: { id: '14' },
-    memo: `SSVF TFA - ${input.region} - ${input.programCategory} | Client: ${input.clientName} (${input.clientId})${input.memo ? ' | ' + input.memo : ''}`,
+    memo: `SSVF TFA - ${input.region} - ${input.programCategory} | Client: ${input.clientName} (${input.clientId})${input.tfaNotes ? ' | ' + input.tfaNotes : ''}`,    // Header memo uses TFA notes from submission
     // Custom body fields for SSVF Employee Purchase Request form
     custbody10: input.clientName || '',       // Client Name
     custbody7: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID (LSNDC) - Integer field, displayed as "CLIENT ID" on SSVF form
     custbody9: input.clientId ? parseInt(input.clientId, 10) || 0 : 0,  // Client ID - Integer field (backup)
     ...(input.clientTypeId ? { custbody8: { id: input.clientTypeId } } : {}),              // Client Type (1=RRH, 2=HP)
-    ...(input.clientTypeId ? { custbody13: { id: input.clientTypeId } } : {}),             // Client Category SSVF (1=Cat1, 2=Cat2, 3=Cat3) — mirrors Client Type
+    ...(input.clientCategoryId ? { custbody13: { id: input.clientCategoryId } } : {}),     // Client Category SSVF (1=HP/Cat1, 2=RRH/Cat2)
     ...(input.financialAssistanceTypeId ? { custbody11: { id: input.financialAssistanceTypeId } } : {}), // Financial Assistance Type
     ...(input.assistanceMonthId ? { custbody12: { id: input.assistanceMonthId } } : {}),   // Assistance Month
-    custbody10_2: { id: '4' },                // Approval Routing Program: SSVF
-    item: {
-      items: input.lineItems.map(li => ({
-        item: { id: li.itemId },
-        department: { id: li.departmentId },
-        class: { id: li.classId },
-        description: li.description,
-        quantity: li.quantity,
-        rate: li.rate,
-        amount: li.amount,
-      })),
+    custbody10_2: { id: '1' },                // Approval Routing Program: VETS
+    // Use expense sublist so the GL account is settable directly
+    expense: {
+      items: input.lineItems.map(li => {
+        // Build memo: include item name + optional PO modal memo
+        const lineMemo = input.memo
+          ? `${li.description} — ${input.memo}`
+          : li.description;
+        return {
+          account: { id: li.accountId || '312' },  // GL account (default: Room & Board)
+          amount: li.amount,
+          memo: lineMemo,
+          department: { id: li.departmentId },
+          class: { id: li.classId },
+        };
+      }),
     },
   };
 }
@@ -395,4 +454,152 @@ export async function createPurchaseOrder(
       payload,
     };
   }
+}
+
+// ============ FILE CABINET / ATTACHMENT FUNCTIONS ============
+
+/**
+ * Find or create a folder in NetSuite's File Cabinet for SSVF TFA attachments.
+ * Caches the folder ID for the lifetime of the function app instance.
+ */
+let tfaFolderIdCache: string | null = null;
+
+export async function ensureTFAFolder(): Promise<string> {
+  if (tfaFolderIdCache) return tfaFolderIdCache;
+
+  // Try to find existing folder via SuiteQL
+  try {
+    const result = await suiteQL(
+      `SELECT id FROM mediaitemfolder WHERE name = 'SSVF TFA Attachments'`,
+      1,
+    );
+    if (result.items.length > 0) {
+      tfaFolderIdCache = String(result.items[0].id);
+      return tfaFolderIdCache;
+    }
+  } catch (err) {
+    console.warn('[ensureTFAFolder] SuiteQL lookup failed, will create folder:', err);
+  }
+
+  // Folder doesn't exist — create it
+  const createResult = await netsuiteRequest('POST', '/record/v1/folder', {
+    name: 'SSVF TFA Attachments',
+  });
+
+  if (createResult.status === 204 || createResult.status === 200 || createResult.status === 201) {
+    // Extract folder ID from Location header
+    let folderId: string | undefined;
+    if (createResult.location) {
+      const match = createResult.location.match(/\/folder\/(\d+)/i);
+      if (match) folderId = match[1];
+    }
+    if (!folderId && createResult.data?.id) {
+      folderId = String(createResult.data.id);
+    }
+    if (folderId) {
+      tfaFolderIdCache = folderId;
+      return tfaFolderIdCache;
+    }
+  }
+
+  throw new Error(`Failed to create SSVF TFA Attachments folder: ${createResult.status}`);
+}
+
+/**
+ * Upload a file to the NetSuite File Cabinet.
+ * Returns the internal file ID.
+ */
+export async function uploadFileToNetSuite(
+  fileName: string,
+  base64Content: string,
+  folderId: string,
+  description?: string,
+): Promise<string> {
+  const result = await netsuiteRequest('POST', '/record/v1/file', {
+    name: fileName,
+    folder: { id: folderId },
+    content: base64Content,
+    ...(description ? { description } : {}),
+  });
+
+  if (result.status === 204 || result.status === 200 || result.status === 201) {
+    let fileId: string | undefined;
+    if (result.location) {
+      const match = result.location.match(/\/file\/(\d+)/i);
+      if (match) fileId = match[1];
+    }
+    if (!fileId && result.data?.id) {
+      fileId = String(result.data.id);
+    }
+    if (fileId) return fileId;
+  }
+
+  throw new Error(`Failed to upload file to NetSuite: ${result.status} ${JSON.stringify(result.data).substring(0, 300)}`);
+}
+
+/**
+ * Attach a File Cabinet file to a Purchase Order record in NetSuite.
+ */
+export async function attachFileToPO(fileId: string, poInternalId: string): Promise<void> {
+  const result = await netsuiteRequest(
+    'POST',
+    `/record/v1/purchaseOrder/${poInternalId}/!transform/attach`,
+    {
+      record: {
+        type: 'file',
+        id: fileId,
+      },
+    },
+  );
+
+  // Accept 204, 200, 201 as success
+  if (result.status !== 204 && result.status !== 200 && result.status !== 201) {
+    throw new Error(`Failed to attach file ${fileId} to PO ${poInternalId}: ${result.status} ${JSON.stringify(result.data).substring(0, 300)}`);
+  }
+}
+
+/**
+ * Upload files to NetSuite File Cabinet and attach them to a PO.
+ * Returns a summary of successes/failures (non-throwing — PO is already created at this point).
+ */
+export async function uploadAndAttachFiles(
+  poInternalId: string,
+  poNumber: string | undefined,
+  files: Array<{ fileName: string; buffer: Buffer; contentType: string }>,
+): Promise<{ attached: number; failed: number; errors: string[] }> {
+  const errors: string[] = [];
+  let attached = 0;
+
+  // Ensure the target folder exists
+  let folderId: string;
+  try {
+    folderId = await ensureTFAFolder();
+  } catch (err) {
+    return { attached: 0, failed: files.length, errors: [`Folder creation failed: ${err instanceof Error ? err.message : String(err)}`] };
+  }
+
+  for (const file of files) {
+    try {
+      const base64 = file.buffer.toString('base64');
+      const nsFileName = poNumber
+        ? `PO_${poNumber}_${file.fileName}`
+        : `TFA_${poInternalId}_${file.fileName}`;
+
+      const fileId = await uploadFileToNetSuite(
+        nsFileName,
+        base64,
+        folderId,
+        `SSVF TFA attachment for PO ${poNumber || poInternalId}`,
+      );
+
+      await attachFileToPO(fileId, poInternalId);
+      attached++;
+    } catch (err) {
+      const msg = `Failed ${file.fileName}: ${err instanceof Error ? err.message : String(err)}`;
+      errors.push(msg);
+      console.warn('[uploadAndAttachFiles]', msg);
+    }
+  }
+
+  return { attached, failed: files.length - attached, errors };
 }

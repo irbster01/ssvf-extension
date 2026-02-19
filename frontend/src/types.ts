@@ -1,4 +1,4 @@
-export type SubmissionStatus = 'New' | 'Submitted';
+export type SubmissionStatus = 'New' | 'Corrections' | 'In Review' | 'Submitted';
 
 export interface AttachmentMeta {
   blobName: string;

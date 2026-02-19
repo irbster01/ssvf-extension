@@ -106,6 +106,32 @@ export async function getAttachmentDownloadUrl(blobName: string): Promise<string
 }
 
 /**
+ * Download a blob attachment as a Buffer (for re-uploading to NetSuite etc.)
+ */
+export async function downloadAttachment(blobName: string): Promise<{ buffer: Buffer; contentType: string; fileName: string }> {
+  const container = getContainerClient();
+  const blobClient = container.getBlobClient(blobName);
+  const downloadResponse = await blobClient.download(0);
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of downloadResponse.readableStreamBody as NodeJS.ReadableStream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const buffer = Buffer.concat(chunks);
+
+  // Extract original filename from blobName (format: submissionId/timestamp_filename)
+  const parts = blobName.split('/');
+  const lastPart = parts[parts.length - 1];
+  const fileName = lastPart.replace(/^\d+_/, ''); // strip timestamp prefix
+
+  return {
+    buffer,
+    contentType: downloadResponse.contentType || 'application/octet-stream',
+    fileName,
+  };
+}
+
+/**
  * Delete a blob attachment
  */
 export async function deleteAttachment(blobName: string): Promise<void> {

@@ -3,11 +3,12 @@ import { useMsal } from '@azure/msal-react';
 import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import { Capacitor } from '@capacitor/core';
 import { Submission, SubmissionStatus } from '../types';
-import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor, fetchUnreadCount } from '../api/submissions';
+import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor, fetchUnreadCount, sendMessage } from '../api/submissions';
 import { nativeAuth } from '../auth/nativeAuth';
 import { useSignalR } from '../hooks/useSignalR';
 import EditModal from './EditModal';
 import MessageModal from './MessageModal';
+import CorrectionModal from './CorrectionModal';
 import PurchaseOrderModal, { PurchaseOrderData } from './PurchaseOrderModal';
 import SubmitTFA from './SubmitTFA';
 import AnalyticsModal from './AnalyticsModal';
@@ -18,8 +19,11 @@ interface Toast {
   message: string;
 }
 
-const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'Submitted'];
+const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'Corrections', 'In Review', 'Submitted'];
 const isNative = Capacitor.isNativePlatform();
+
+type SortKey = 'date' | 'client' | 'region' | 'program' | 'vendor' | 'amount' | 'status';
+type SortDir = 'asc' | 'desc';
 
 function Dashboard() {
   const { instance, accounts } = useMsal();
@@ -34,12 +38,29 @@ function Dashboard() {
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
   const [poSubmission, setPoSubmission] = useState<Submission | null>(null);
   const [messageSubmission, setMessageSubmission] = useState<Submission | null>(null);
+  const [correctionSubmission, setCorrectionSubmission] = useState<Submission | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [sortKey, setSortKey] = useState<SortKey>('date');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'date' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortIndicator = (key: SortKey) =>
+    sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   const addToast = useCallback((type: Toast['type'], message: string) => {
     const id = ++toastIdRef.current;
@@ -128,6 +149,7 @@ function Dashboard() {
       setError(err instanceof Error ? err.message : 'Failed to load submissions');
     } finally {
       setLoading(false);
+      setLastRefreshed(new Date());
     }
   }, [getToken]);
 
@@ -227,6 +249,22 @@ function Dashboard() {
     }
   };
 
+  const handleSaveCorrection = async (updates: Partial<Submission>) => {
+    if (!correctionSubmission) return;
+    try {
+      const token = await getToken();
+      const updated = await updateSubmission(token, correctionSubmission.id, correctionSubmission.service_type, {
+        ...updates,
+        updated_by: currentUsername,
+        updated_at: new Date().toISOString(),
+      });
+      setSubmissions(prev => prev.map(s => s.id === correctionSubmission.id ? { ...s, ...updated, ...updates } : s));
+      addToast('success', 'Corrections submitted');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save corrections');
+    }
+  };
+
   const handleUploadFile = async (file: File) => {
     if (!editingSubmission) throw new Error('No submission selected');
     const token = await getToken();
@@ -234,6 +272,20 @@ function Dashboard() {
     // Update local state with new attachment
     setSubmissions(prev => prev.map(s => {
       if (s.id === editingSubmission.id) {
+        const attachments = [...(s.attachments || []), meta];
+        return { ...s, attachments };
+      }
+      return s;
+    }));
+    return meta;
+  };
+
+  const handleCorrectionUploadFile = async (file: File) => {
+    if (!correctionSubmission) throw new Error('No submission selected');
+    const token = await getToken();
+    const meta = await uploadAttachment(token, correctionSubmission.id, correctionSubmission.service_type, file);
+    setSubmissions(prev => prev.map(s => {
+      if (s.id === correctionSubmission.id) {
         const attachments = [...(s.attachments || []), meta];
         return { ...s, attachments };
       }
@@ -300,7 +352,24 @@ function Dashboard() {
     }
   }, [getToken, currentUsername]);
 
-  const hasActiveFilters = statusFilter !== 'all' || regionFilter !== 'all' || programFilter !== 'all' || !!dateFrom || !!dateTo;
+  const handleSendBack = useCallback(async (submissionId: string, serviceType: string, message: string) => {
+    const token = await getToken();
+    // Send the correction-request message
+    await sendMessage(token, submissionId, `⚠️ Correction needed: ${message}`, serviceType);
+    // Update status to Corrections
+    await updateSubmission(token, submissionId, serviceType, {
+      status: 'Corrections',
+      updated_by: currentUsername,
+      updated_at: new Date().toISOString(),
+    } as any);
+    // Update local state
+    setSubmissions(prev => prev.map(s =>
+      s.id === submissionId ? { ...s, status: 'Corrections' as SubmissionStatus } : s
+    ));
+    addToast('info', 'Sent back for corrections');
+  }, [getToken, currentUsername, addToast]);
+
+  const hasActiveFilters = statusFilter !== 'all' || regionFilter !== 'all' || programFilter !== 'all' || !!dateFrom || !!dateTo || !!searchQuery;
 
   const clearAllFilters = () => {
     setStatusFilter('all');
@@ -308,6 +377,7 @@ function Dashboard() {
     setProgramFilter('all');
     setDateFrom('');
     setDateTo('');
+    setSearchQuery('');
   };
 
   const filteredSubmissions = submissions.filter(s => {
@@ -326,7 +396,44 @@ function Dashboard() {
       to.setHours(23, 59, 59, 999);
       if (captured > to) return false;
     }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const haystack = [s.client_name, s.client_id, s.vendor, s.po_number]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     return true;
+  });
+
+  const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case 'date': {
+        const da = new Date(a.tfa_date || a.captured_at_utc).getTime();
+        const db = new Date(b.tfa_date || b.captured_at_utc).getTime();
+        cmp = da - db;
+        break;
+      }
+      case 'client':
+        cmp = (a.client_name || '').localeCompare(b.client_name || '');
+        break;
+      case 'region':
+        cmp = (a.region || '').localeCompare(b.region || '');
+        break;
+      case 'program':
+        cmp = (a.program_category || '').localeCompare(b.program_category || '');
+        break;
+      case 'vendor':
+        cmp = (a.vendor || '').localeCompare(b.vendor || '');
+        break;
+      case 'amount':
+        cmp = (a.service_amount || 0) - (b.service_amount || 0);
+        break;
+      case 'status':
+        cmp = (a.status || '').localeCompare(b.status || '');
+        break;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
   });
 
   const exportCSV = () => {
@@ -395,6 +502,8 @@ function Dashboard() {
 
   const stats = {
     new: submissions.filter(s => s.status === 'New').length,
+    corrections: submissions.filter(s => s.status === 'Corrections').length,
+    inReview: submissions.filter(s => s.status === 'In Review').length,
     submitted: submissions.filter(s => s.status === 'Submitted').length,
   };
 
@@ -431,12 +540,47 @@ function Dashboard() {
 
       <div className="table-container">
         <div className="toolbar">
+          <div className="status-pills">
+            <button
+              className={`status-pill status-pill-all${statusFilter === 'all' ? ' active' : ''}`}
+              onClick={() => setStatusFilter('all')}
+            >
+              All <span className="pill-count">{submissions.length}</span>
+            </button>
+            <button
+              className={`status-pill status-pill-new${statusFilter === 'New' ? ' active' : ''}`}
+              onClick={() => setStatusFilter(statusFilter === 'New' ? 'all' : 'New')}
+            >
+              New <span className="pill-count">{stats.new}</span>
+            </button>
+            <button
+              className={`status-pill status-pill-corrections${statusFilter === 'Corrections' ? ' active' : ''}`}
+              onClick={() => setStatusFilter(statusFilter === 'Corrections' ? 'all' : 'Corrections')}
+            >
+              Corrections <span className="pill-count">{stats.corrections}</span>
+            </button>
+            <button
+              className={`status-pill status-pill-in-review${statusFilter === 'In Review' ? ' active' : ''}`}
+              onClick={() => setStatusFilter(statusFilter === 'In Review' ? 'all' : 'In Review')}
+            >
+              In Review <span className="pill-count">{stats.inReview}</span>
+            </button>
+            <button
+              className={`status-pill status-pill-submitted${statusFilter === 'Submitted' ? ' active' : ''}`}
+              onClick={() => setStatusFilter(statusFilter === 'Submitted' ? 'all' : 'Submitted')}
+            >
+              Submitted <span className="pill-count">{stats.submitted}</span>
+            </button>
+          </div>
           <div className="filter-row">
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status">
-              <option value="all">All Status ({submissions.length})</option>
-              <option value="New">New ({stats.new})</option>
-              <option value="Submitted">Submitted ({stats.submitted})</option>
-            </select>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search client, vendor, ID..."
+              className="search-input"
+              aria-label="Search submissions"
+            />
             <select value={regionFilter} onChange={e => setRegionFilter(e.target.value)} aria-label="Filter by region">
               <option value="all">All Regions</option>
               <option value="Shreveport">Shreveport</option>
@@ -487,6 +631,11 @@ function Dashboard() {
             <button className="btn btn-secondary" onClick={() => setShowAnalytics(true)} aria-label="View analytics">
               Analytics
             </button>
+            {lastRefreshed && (
+              <span className="last-refreshed" title={lastRefreshed.toLocaleString()}>
+                {lastRefreshed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+              </span>
+            )}
             <button className="btn btn-primary" onClick={loadSubmissions} aria-label="Refresh submissions">
               Refresh
             </button>
@@ -494,33 +643,34 @@ function Dashboard() {
         </div>
 
         {/* Desktop table */}
+        <div className="table-scroll">
         <table className="desktop-table" aria-label="Submissions">
           <thead>
             <tr>
-              <th scope="col">Status</th>
-              <th scope="col">Date</th>
-              <th scope="col">Client</th>
-              <th scope="col">Region</th>
-              <th scope="col">Program</th>
-              <th scope="col">Vendor</th>
-              <th scope="col">Amt</th>
+              <th scope="col" className="sortable-th" onClick={() => toggleSort('status')}>Status{sortIndicator('status')}</th>
+              <th scope="col" className="sortable-th" onClick={() => toggleSort('date')}>Date{sortIndicator('date')}</th>
+              <th scope="col" className="sortable-th" onClick={() => toggleSort('client')}>Client{sortIndicator('client')}</th>
+              <th scope="col" className="sortable-th" onClick={() => toggleSort('region')}>Region{sortIndicator('region')}</th>
+              <th scope="col" className="sortable-th" onClick={() => toggleSort('program')}>Prog{sortIndicator('program')}</th>
+              <th scope="col" className="sortable-th" onClick={() => toggleSort('vendor')}>Vendor{sortIndicator('vendor')}</th>
+              <th scope="col" className="sortable-th" onClick={() => toggleSort('amount')}>Amt{sortIndicator('amount')}</th>
               <th scope="col">PO#</th>
               <th scope="col">Files</th>
               <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredSubmissions.length === 0 ? (
+            {sortedSubmissions.length === 0 ? (
               <tr>
                 <td colSpan={10} style={{ textAlign: 'center', padding: '40px' }}>
                   No submissions found
                 </td>
               </tr>
             ) : (
-              filteredSubmissions.map(submission => {
+              sortedSubmissions.map(submission => {
                 const isDead = !!submission.po_number && !!submission.entered_in_system;
                 return (
-                <tr key={submission.id} className={`${submission.entered_in_system ? 'row-entered' : 'row-not-entered'}${isDead ? ' row-po-sent' : ''}`}>
+                <tr key={submission.id} className={`row-status-${(submission.status || 'New').toLowerCase().replace(' ', '-')}${isDead ? ' row-po-sent' : ''}`}>
                   <td>
                     <select
                       className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
@@ -573,14 +723,30 @@ function Dashboard() {
                   </td>
                   <td className="cell-actions">
                     <div className="actions-wrap">
-                      <button
-                        className="btn btn-primary btn-small"
-                        onClick={() => setPoSubmission(submission)}
-                        disabled={isDead}
-                        aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
-                      >
-                        PO
-                      </button>
+                      {submission.status === 'Corrections' ? (
+                        <button
+                          className="btn btn-small"
+                          onClick={() => setCorrectionSubmission(submission)}
+                          aria-label={`Fix corrections for ${submission.client_name || submission.client_id || 'unknown'}`}
+                          style={{
+                            backgroundColor: '#fff7ed',
+                            color: '#ea580c',
+                            border: '1px solid #fed7aa',
+                            fontWeight: 600,
+                          }}
+                        >
+                          ✎ Fix
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-primary btn-small"
+                          onClick={() => setPoSubmission(submission)}
+                          disabled={isDead}
+                          aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
+                        >
+                          PO
+                        </button>
+                      )}
                       <button
                         className="btn btn-secondary btn-small"
                         onClick={() => setEditingSubmission(submission)}
@@ -610,16 +776,17 @@ function Dashboard() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Mobile cards */}
         <div className="mobile-cards" role="list" aria-label="Submissions">
-          {filteredSubmissions.length === 0 ? (
+          {sortedSubmissions.length === 0 ? (
             <div className="mobile-card-empty">No submissions found</div>
           ) : (
-            filteredSubmissions.map(submission => {
+            sortedSubmissions.map(submission => {
               const isDead = !!submission.po_number && !!submission.entered_in_system;
               return (
-              <article key={submission.id} className={`mobile-card${submission.entered_in_system ? ' card-entered' : ''}${isDead ? ' card-po-sent' : ''}`} role="listitem">
+              <article key={submission.id} className={`mobile-card card-status-${(submission.status || 'New').toLowerCase().replace(' ', '-')}${isDead ? ' card-po-sent' : ''}`} role="listitem">
                 <div className="mobile-card-top">
                   <select
                     className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
@@ -668,22 +835,36 @@ function Dashboard() {
                     </div>
                   )}
                 </div>
-                <div className="mobile-card-actions" style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    className="btn btn-primary mobile-card-edit"
-                    onClick={() => setPoSubmission(submission)}
-                    disabled={isDead}
-                    aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
-                    style={{ flex: 1 }}
-                  >
-                    {isDead ? 'PO Sent' : 'Create PO'}
-                  </button>
+                <div className="mobile-card-actions">
+                  {submission.status === 'Corrections' ? (
+                    <button
+                      className="btn mobile-card-edit"
+                      onClick={() => setCorrectionSubmission(submission)}
+                      aria-label={`Fix corrections for ${submission.client_name || submission.client_id || 'unknown'}`}
+                      style={{
+                        backgroundColor: '#fff7ed',
+                        color: '#ea580c',
+                        border: '1px solid #fed7aa',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ✎ Fix Corrections
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary mobile-card-edit"
+                      onClick={() => setPoSubmission(submission)}
+                      disabled={isDead}
+                      aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
+                    >
+                      {isDead ? 'PO Sent' : 'Create PO'}
+                    </button>
+                  )}
                   <button
                     className="btn btn-secondary mobile-card-edit"
                     onClick={() => setEditingSubmission(submission)}
                     disabled={isDead}
                     aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
-                    style={{ flex: 1 }}
                   >
                     Edit
                   </button>
@@ -692,7 +873,6 @@ function Dashboard() {
                     onClick={() => setMessageSubmission(submission)}
                     aria-label={`Messages for ${submission.client_name || submission.client_id || 'unknown'}`}
                     style={{
-                      flex: 1,
                       backgroundColor: unreadCounts[submission.id] > 0 ? '#fef2f2' : '#f0f9ff',
                       color: unreadCounts[submission.id] > 0 ? '#dc2626' : '#0369a1',
                       border: `1px solid ${unreadCounts[submission.id] > 0 ? '#fca5a5' : '#bae6fd'}`,
@@ -722,6 +902,21 @@ function Dashboard() {
         />
       )}
 
+      {correctionSubmission && (
+        <CorrectionModal
+          submission={correctionSubmission}
+          vendors={vendors}
+          vendorsLoading={vendorsLoading}
+          currentUserEmail={currentUsername}
+          getToken={getToken}
+          onSave={handleSaveCorrection}
+          onClose={() => setCorrectionSubmission(null)}
+          onUploadFile={handleCorrectionUploadFile}
+          onDownloadFile={handleDownloadFile}
+          onUnreadChange={handleUnreadChange}
+        />
+      )}
+
       {messageSubmission && (
         <MessageModal
           submissionId={messageSubmission.id}
@@ -741,6 +936,7 @@ function Dashboard() {
           vendorsLoading={vendorsLoading}
           onClose={() => setPoSubmission(null)}
           onSubmitPO={handleCreatePO}
+          onSendBack={handleSendBack}
         />
       )}
 

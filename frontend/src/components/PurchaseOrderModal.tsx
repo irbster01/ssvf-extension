@@ -8,6 +8,7 @@ interface PurchaseOrderModalProps {
   vendorsLoading: boolean;
   onClose: () => void;
   onSubmitPO: (poData: PurchaseOrderData) => void;
+  onSendBack: (submissionId: string, serviceType: string, message: string) => Promise<void>;
 }
 
 export interface PurchaseOrderData {
@@ -21,16 +22,20 @@ export interface PurchaseOrderData {
   programCategory: string;
   amount: number;
   memo: string;
+  tfaNotes: string;
   clientTypeId?: string;
+  clientCategoryId?: string;
   financialAssistanceTypeId?: string;
   assistanceMonthId?: string;
   lineItems: POLineItem[];
+  attachmentBlobNames?: string[];
 }
 
 export interface POLineItem {
   itemId: string;
   departmentId: string;
   classId: string;
+  accountId?: string;
   description: string;
   quantity: number;
   rate: number;
@@ -60,6 +65,42 @@ const NETSUITE_SITES = [
   { id: '10', name: '013 Woodlawn' },
 ] as const;
 
+// NetSuite GL Accounts used for TFA POs (curated from 2-year history)
+const NETSUITE_ACCOUNTS = [
+  { id: '312', number: '8805', name: 'Room & Board' },
+  { id: '314', number: '8815', name: 'Client Utilities' },
+  { id: '317', number: '8830', name: 'Clothing & Personal Needs' },
+  { id: '318', number: '8835', name: 'Incentives for Clients' },
+  { id: '321', number: '8850', name: 'Client Moving Expenses' },
+  { id: '322', number: '8855', name: 'Client Furniture' },
+  { id: '323', number: '8860', name: 'Transportation' },
+  { id: '302', number: '8401', name: 'Repairs & Maintenance Contract' },
+  { id: '306', number: '8625', name: 'Agency Vehicle Operating Cost' },
+  { id: '307', number: '8630', name: 'Auto Leases' },
+  { id: '308', number: '8635', name: 'Mileage & Vehicle Rental' },
+  { id: '279', number: '8010', name: 'Computer Expense' },
+  { id: '293', number: '8140', name: 'Copier Lease & Supplies' },
+  { id: '296', number: '8205', name: 'Telephone Expense' },
+  { id: '291', number: '8130', name: 'Office Supplies' },
+  { id: '295', number: '8203', name: 'Postage & Shipping Expense' },
+  { id: '278', number: '8007', name: 'Other Professional Fees' },
+  { id: '292', number: '8135', name: 'Furniture & Equipment' },
+  { id: '299', number: '8310', name: 'Rent of Space - Intercompany' },
+  { id: '298', number: '8305', name: 'Rent of Space' },
+  { id: '290', number: '8125', name: 'Housekeeping Supplies' },
+  { id: '303', number: '8501', name: 'Maintenance Services - Inhouse' },
+  { id: '309', number: '8640', name: 'Conferences & Meetings - Outside' },
+  { id: '283', number: '8080', name: 'Memberships to Other Organizations' },
+  { id: '300', number: '8315', name: 'Office Moving Expense' },
+  { id: '284', number: '8101', name: 'Program Food & Beverage' },
+  { id: '294', number: '8201', name: 'Printing & Printing Supplies' },
+  { id: '272', number: '7510', name: 'Employee Training & Development' },
+  { id: '271', number: '7203', name: "Worker's Comp & Disability Ins" },
+  { id: '932', number: '1285', name: 'Client Receivables' },
+  { id: '931', number: '1288', name: 'Travel Advances' },
+  { id: '328', number: '9300', name: 'Late Fees & Penalties' },
+] as const;
+
 // NetSuite "Client:" items available for TFA PO line items
 const NETSUITE_ITEMS = [
   { id: '226', name: 'Client:  Cash Subsidy' },
@@ -85,7 +126,24 @@ function guessItemId(assistanceType: string): string {
   return '226'; // Default: Cash Subsidy
 }
 
-// NetSuite Client Type list (custbody8)
+// Default GL account per item (expense sublist requires explicit account)
+const ITEM_DEFAULT_ACCOUNT: Record<string, string> = {
+  '267': '312', // Room & Board → 8805 Room & Board for Clients
+  '226': '320', // Cash Subsidy → 8845 Cash Subsidy for Clients
+  '227': '318', // Incentives → 8835 Incentives
+  '228': '321', // Moving → 8850 Moving
+  '230': '314', // Utilities → 8815 Client Utilities
+  '229': '323', // Transportation → 8860 Transportation
+  '231': '317', // Clothing → 8830 Clothing / Personal Needs
+  '640': '322', // Linen & Bedding → 8855 Furniture / Household
+};
+
+// Auto-select GL account based on item selection
+function guessAccountId(itemId: string): string {
+  return ITEM_DEFAULT_ACCOUNT[itemId] || '320'; // Default: Cash Subsidy for Clients
+}
+
+// NetSuite Client Type list (custbody8) — IDs match NetSuite's internal list
 const CLIENT_TYPES = [
   { id: '1', name: 'Rapid Rehousing' },
   { id: '2', name: 'Homeless Prevention' },
@@ -105,11 +163,19 @@ const FINANCIAL_ASSISTANCE_TYPES = [
   { id: '8', name: 'Child Care' },
 ] as const;
 
-// Auto-map program_category to Client Type ID
+// Auto-map program_category to Client Type ID (custbody8: 1=RRH, 2=HP in NetSuite)
 function guessClientTypeId(programCategory: string): string {
   const lower = (programCategory || '').toLowerCase();
   if (lower.includes('rapid')) return '1';
   if (lower.includes('prevention')) return '2';
+  return '';
+}
+
+// Derive Client Category SSVF ID (custbody13) from Client Type ID (custbody8)
+// custbody8: 1=RRH, 2=HP  →  custbody13: 1=HP (Cat1), 2=RRH (Cat2)
+function clientTypeToCategory(clientTypeId: string): string {
+  if (clientTypeId === '1') return '2'; // RRH type → Cat 2
+  if (clientTypeId === '2') return '1'; // HP type → Cat 1
   return '';
 }
 
@@ -137,11 +203,16 @@ function getAssistanceMonthId(dateStr: string): string {
   return String(d.getMonth() + 1); // 1=January … 12=December
 }
 
-function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO }: PurchaseOrderModalProps) {
-  const [memo, setMemo] = useState(submission.notes || '');
+function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO, onSendBack }: PurchaseOrderModalProps) {
+  const [memo, setMemo] = useState('');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; text: string; payload?: any; response?: any } | null>(null);
   const [showPayload, setShowPayload] = useState(false);
+
+  // Send-back-for-corrections state
+  const [sendBackMode, setSendBackMode] = useState(false);
+  const [sendBackMessage, setSendBackMessage] = useState('');
+  const [sendingBack, setSendingBack] = useState(false);
 
   // Vendor autocomplete state
   const [vendorSearch, setVendorSearch] = useState(submission.vendor || '');
@@ -233,12 +304,14 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
   const [selectedClientTypeId, setSelectedClientTypeId] = useState(() => guessClientTypeId(submission.program_category || ''));
   const [selectedFATypeId, setSelectedFATypeId] = useState(() => guessFinancialAssistanceTypeId(assistanceType));
   const [selectedMonthId, setSelectedMonthId] = useState(() => getAssistanceMonthId(submission.captured_at_utc));
+  const [selectedAccountId, setSelectedAccountId] = useState(() => guessAccountId(guessItemId(assistanceType)));
 
   const lineItems: POLineItem[] = [
     {
       itemId: selectedItemId,
       departmentId: selectedDeptId,
       classId: selectedSiteId,
+      accountId: selectedAccountId,
       description: assistanceType,
       quantity: 1,
       rate: submission.service_amount || 0,
@@ -266,16 +339,33 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
         programCategory: submission.program_category || '',
         amount: submission.service_amount || 0,
         memo,
+        tfaNotes: submission.notes || (submission.form_data?.notes as string) || '',
         clientTypeId: selectedClientTypeId || undefined,
+        clientCategoryId: clientTypeToCategory(selectedClientTypeId) || undefined,
         financialAssistanceTypeId: selectedFATypeId || undefined,
         assistanceMonthId: selectedMonthId || undefined,
         lineItems,
+        attachmentBlobNames: submission.attachments?.map(a => a.blobName) || [],
       };
       // Fire and forget — Dashboard handles the async work, toasts, and closing
       onSubmitPO(poData);
     } catch (err) {
       setResult({ type: 'error', text: err instanceof Error ? err.message : 'Failed to build PO data' });
       setSending(false);
+    }
+  };
+
+  const handleSendBack = async () => {
+    if (!sendBackMessage.trim()) return;
+    setSendingBack(true);
+    try {
+      await onSendBack(submission.id, submission.service_type, sendBackMessage.trim());
+      setResult({ type: 'success', text: 'Sent back for corrections' });
+      setSendBackMode(false);
+    } catch (err) {
+      setResult({ type: 'error', text: err instanceof Error ? err.message : 'Failed to send back' });
+    } finally {
+      setSendingBack(false);
     }
   };
 
@@ -454,7 +544,10 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
             <label>NetSuite Item Category</label>
             <select
               value={selectedItemId}
-              onChange={e => setSelectedItemId(e.target.value)}
+              onChange={e => {
+                setSelectedItemId(e.target.value);
+                setSelectedAccountId(guessAccountId(e.target.value));
+              }}
               className="po-select"
             >
               {NETSUITE_ITEMS.map(it => (
@@ -488,6 +581,20 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
               </select>
             </div>
           </div>
+          {/* Account selector */}
+          <div className="form-group" style={{ marginTop: '12px' }}>
+            <label>Account (GL Expense Account)</label>
+            <select
+              value={selectedAccountId}
+              onChange={e => setSelectedAccountId(e.target.value)}
+              className="po-select"
+            >
+              <option value="">— Select account —</option>
+              {NETSUITE_ACCOUNTS.map(a => (
+                <option key={a.id} value={a.id}>{a.number} — {a.name}</option>
+              ))}
+            </select>
+          </div>
           <table className="po-line-table">
             <thead>
               <tr>
@@ -518,16 +625,109 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
           </table>
         </div>
 
-        {/* Memo */}
-        <div className="form-group" style={{ marginTop: '16px' }}>
-          <label>Memo / Notes</label>
+        {/* TFA Notes (read-only, goes to PO header memo) */}
+        {(submission.notes || (submission.form_data?.notes as string)) && (
+          <div className="form-group" style={{ marginTop: '16px' }}>
+            <label>TFA Notes <span style={{ fontWeight: 'normal', fontSize: '0.8em', color: '#888' }}>(→ PO header memo)</span></label>
+            <input type="text" value={submission.notes || (submission.form_data?.notes as string) || ''} readOnly style={{ background: '#f5f5f5', color: '#555' }} />
+          </div>
+        )}
+
+        {/* Line Item Memo (editable, goes to each line item) */}
+        <div className="form-group" style={{ marginTop: '8px' }}>
+          <label>Line Item Memo <span style={{ fontWeight: 'normal', fontSize: '0.8em', color: '#888' }}>(→ item memo)</span></label>
           <input
             type="text"
             value={memo}
             onChange={e => setMemo(e.target.value)}
-            placeholder="Optional memo for this PO"
+            placeholder="Optional memo for line items"
           />
         </div>
+
+        {/* Attachments indicator */}
+        {submission.attachments && submission.attachments.length > 0 && (
+          <div style={{ margin: '12px 0 4px', padding: '8px 12px', background: '#e8f4fd', borderRadius: '6px', fontSize: '0.85rem', color: '#1a73e8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>📎</span>
+            <span>
+              {submission.attachments.length} attachment{submission.attachments.length !== 1 ? 's' : ''} will be uploaded to NetSuite:
+            </span>
+            <span style={{ color: '#555', fontWeight: 400 }}>
+              {submission.attachments.map(a => a.fileName).join(', ')}
+            </span>
+          </div>
+        )}
+
+        {/* Send-back panel */}
+        {sendBackMode && !result && (
+          <div style={{
+            margin: '16px 0 0',
+            padding: '14px',
+            backgroundColor: '#fff7ed',
+            border: '1px solid #fed7aa',
+            borderRadius: '8px',
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '8px',
+            }}>
+              <label style={{ fontWeight: 600, fontSize: '0.9em', color: '#9a3412' }}>
+                What needs to be corrected?
+              </label>
+              <button
+                type="button"
+                onClick={() => setSendBackMode(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '1.1em',
+                  color: '#9a3412',
+                  padding: '2px 6px',
+                }}
+                aria-label="Cancel send back"
+              >
+                ×
+              </button>
+            </div>
+            <textarea
+              value={sendBackMessage}
+              onChange={e => setSendBackMessage(e.target.value)}
+              placeholder="Describe the issue — e.g. wrong amount, missing client ID, vendor doesn't match..."
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                fontSize: '0.85em',
+                border: '1px solid #fed7aa',
+                borderRadius: '6px',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={handleSendBack}
+              disabled={sendingBack || !sendBackMessage.trim()}
+              style={{
+                marginTop: '8px',
+                padding: '8px 16px',
+                fontSize: '0.85em',
+                fontWeight: 600,
+                backgroundColor: sendingBack || !sendBackMessage.trim() ? '#d1d5db' : '#ea580c',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: sendingBack || !sendBackMessage.trim() ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {sendingBack ? 'Sending…' : 'Send Back for Corrections'}
+            </button>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="modal-actions">
@@ -546,15 +746,34 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
                 type="button"
                 className="btn btn-secondary"
                 onClick={onClose}
-                disabled={sending}
+                disabled={sending || sendingBack}
               >
                 Cancel
               </button>
+              {!sendBackMode && (
+                <button
+                  type="button"
+                  onClick={() => setSendBackMode(true)}
+                  disabled={sending}
+                  style={{
+                    padding: '8px 14px',
+                    fontSize: '0.85em',
+                    fontWeight: 600,
+                    backgroundColor: '#fff7ed',
+                    color: '#ea580c',
+                    border: '1px solid #fed7aa',
+                    borderRadius: '6px',
+                    cursor: sending ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  ↩ Send Back
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={handleSubmit}
-                disabled={sending}
+                disabled={sending || sendBackMode}
                 style={{ minWidth: '180px' }}
               >
                 {sending ? 'Sending to NetSuite...' : 'Create Purchase Order'}

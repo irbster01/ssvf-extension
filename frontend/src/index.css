@@ -26,21 +26,30 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
+  padding: 8px 16px;
   background: #0066cc;
   color: white;
-  border-radius: 8px;
-  margin-bottom: 24px;
+  border-radius: 6px;
+  margin-bottom: 12px;
 }
 
 header h1 {
-  font-size: 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.user-info .btn {
+  padding: 4px 10px;
+  font-size: 0.75rem;
 }
 
 .btn {
@@ -94,18 +103,17 @@ header h1 {
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  overflow-x: auto;
 }
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  padding: 8px 12px;
   background: #fafafa;
   border-bottom: 1px solid #e0e0e0;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .toolbar-actions {
@@ -249,6 +257,17 @@ th {
   letter-spacing: 0.03em;
 }
 
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+
+.sortable-th:hover {
+  color: #0066cc;
+}
+
 tr:hover {
   background: #f8f9fa;
 }
@@ -350,9 +369,179 @@ tr.row-po-sent .btn:disabled {
   color: #1565c0;
 }
 
+.status-corrections {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.status-in-review {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
 .status-submitted {
   background: #e8f5e9;
   color: #2e7d32;
+}
+
+/* ========== Status filter pills ========== */
+.status-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid #ddd;
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #666;
+}
+
+.status-pill:hover {
+  border-color: #bbb;
+  background: #f8f8f8;
+}
+
+.pill-count {
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.status-pill-all.active {
+  background: #333;
+  color: #fff;
+  border-color: #333;
+}
+
+.status-pill-new {
+  border-color: #bbdefb;
+  color: #1565c0;
+}
+.status-pill-new.active {
+  background: #1565c0;
+  color: #fff;
+  border-color: #1565c0;
+}
+
+.status-pill-corrections {
+  border-color: #ffcc80;
+  color: #e65100;
+}
+.status-pill-corrections.active {
+  background: #e65100;
+  color: #fff;
+  border-color: #e65100;
+}
+
+.status-pill-in-review {
+  border-color: #ce93d8;
+  color: #7b1fa2;
+}
+.status-pill-in-review.active {
+  background: #7b1fa2;
+  color: #fff;
+  border-color: #7b1fa2;
+}
+
+.status-pill-submitted {
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+.status-pill-submitted.active {
+  background: #2e7d32;
+  color: #fff;
+  border-color: #2e7d32;
+}
+
+/* ========== Search input ========== */
+.search-input {
+  padding: 5px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  min-width: 180px;
+  max-width: 240px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0,102,204,0.12);
+}
+
+/* ========== Table scroll + sticky header ========== */
+.table-scroll {
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+
+.desktop-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f5f5f5;
+}
+
+/* ========== Row tinting by status ========== */
+tr.row-status-new {
+  border-left: 3px solid #1565c0;
+}
+tr.row-status-new td:first-child {
+  padding-left: 9px;
+}
+
+tr.row-status-corrections {
+  border-left: 3px solid #ea580c;
+  background-color: rgba(234, 88, 12, 0.04);
+}
+tr.row-status-corrections td:first-child {
+  padding-left: 9px;
+}
+
+tr.row-status-in-review {
+  border-left: 3px solid #7b1fa2;
+}
+tr.row-status-in-review td:first-child {
+  padding-left: 9px;
+}
+
+tr.row-status-submitted {
+  border-left: 3px solid #2e7d32;
+}
+tr.row-status-submitted td:first-child {
+  padding-left: 9px;
+}
+
+/* Mobile card status tinting */
+.card-status-new {
+  border-left: 3px solid #1565c0;
+}
+.card-status-corrections {
+  border-left: 3px solid #ea580c;
+  background-color: rgba(234, 88, 12, 0.03);
+}
+.card-status-in-review {
+  border-left: 3px solid #7b1fa2;
+}
+.card-status-submitted {
+  border-left: 3px solid #2e7d32;
+}
+
+/* ========== Last refreshed ========== */
+.last-refreshed {
+  font-size: 0.72rem;
+  color: #999;
+  white-space: nowrap;
 }
 
 /* Modal styles */
@@ -987,11 +1176,11 @@ tr.row-po-sent .btn:disabled {
 
 .mobile-card {
   background: white;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  border-left: 4px solid #e8916e;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border-left: 3px solid #e8916e;
 }
 
 .mobile-card.card-entered {
@@ -1012,49 +1201,49 @@ tr.row-po-sent .btn:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .mobile-card-top .status {
-  font-size: 0.85rem;
-  padding: 8px 14px;
-  border-radius: 8px;
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border-radius: 6px;
   border: 1px solid #ddd;
   cursor: pointer;
 }
 
 .mobile-card-amount {
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: #2196F3;
 }
 
 .mobile-card-client {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .mobile-card-client strong {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   color: #333;
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .mobile-card-id {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: #888;
 }
 
 .mobile-card-details {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px 20px;
-  margin-bottom: 18px;
-  padding: 14px;
+  gap: 8px 14px;
+  margin-bottom: 10px;
+  padding: 10px;
   background: #f9fafb;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .mobile-card-detail {
@@ -1072,16 +1261,21 @@ tr.row-po-sent .btn:disabled {
 }
 
 .mobile-card-detail > span:last-child {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: #333;
 }
 
+.mobile-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .mobile-card-edit {
-  width: 100%;
-  padding: 12px;
-  font-size: 1rem;
+  flex: 1;
+  padding: 9px;
+  font-size: 0.88rem;
   text-align: center;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 .mobile-card-empty {
@@ -1098,24 +1292,25 @@ tr.row-po-sent .btn:disabled {
   }
 
   header {
-    flex-direction: column;
-    gap: 12px;
-    text-align: center;
-    padding: 16px 20px;
-    margin-bottom: 20px;
+    flex-direction: row;
+    gap: 8px;
+    text-align: left;
+    padding: 8px 12px;
+    margin-bottom: 10px;
   }
 
   header h1 {
-    font-size: 1.2rem;
+    font-size: 0.85rem;
   }
 
   .user-info {
-    width: 100%;
-    justify-content: center;
+    width: auto;
+    justify-content: flex-end;
   }
 
   .user-info .btn {
-    padding: 10px 20px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
   }
 
   .stats {
@@ -1152,7 +1347,7 @@ tr.row-po-sent .btn:disabled {
 
   .mobile-cards {
     display: block;
-    padding: 16px 4px;
+    padding: 10px 4px;
   }
 
   table {
@@ -1166,9 +1361,9 @@ tr.row-po-sent .btn:disabled {
 
   .toolbar {
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     align-items: stretch;
-    padding: 10px 12px;
+    padding: 8px 10px;
   }
 
   .toolbar .filters,
@@ -1184,31 +1379,31 @@ tr.row-po-sent .btn:disabled {
   }
 
   .toolbar .btn {
-    padding: 10px;
-    font-size: 0.9rem;
+    padding: 8px;
+    font-size: 0.82rem;
   }
 
   .filters,
   .filter-row {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
   }
 
   .filter-row select,
   .filter-row input,
   .filters select,
   .filters input {
-    padding: 8px 10px;
-    font-size: 0.9rem;
+    padding: 7px 8px;
+    font-size: 0.82rem;
     border-radius: 6px;
     flex: 1 1 auto;
-    min-width: 100px;
+    min-width: 80px;
   }
 
   .filter-row .date-input {
     max-width: none;
-    flex: 1 1 130px;
+    flex: 1 1 120px;
   }
 
   /* TFA form mobile */
@@ -1218,18 +1413,18 @@ tr.row-po-sent .btn:disabled {
   }
 
   .submit-tfa-card {
-    padding: 18px;
-    margin-bottom: 20px;
-    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+    border-radius: 10px;
   }
 
   .submit-tfa-card.collapsed {
-    gap: 14px;
-    padding: 18px;
+    gap: 12px;
+    padding: 14px;
   }
 
   .submit-tfa-card h3 {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 
   .tfa-form .form-group {
@@ -1392,49 +1587,49 @@ tr.row-po-sent .btn:disabled {
 
 @media (max-width: 480px) {
   .app {
-    padding: 12px;
+    padding: 10px;
   }
 
   header {
-    padding: 14px 16px;
-    border-radius: 12px;
-    margin-bottom: 16px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
   }
 
   header h1 {
-    font-size: 1.05rem;
+    font-size: 0.8rem;
   }
 
   .stats {
-    gap: 8px;
+    gap: 6px;
   }
 
   .stat-card {
-    padding: 12px 8px;
+    padding: 10px 8px;
   }
 
   .stat-card h3 {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
   }
 
   .stat-card .value {
-    font-size: 1.3rem;
+    font-size: 1.2rem;
   }
 
   .submit-tfa-icon {
-    width: 40px;
-    height: 40px;
-    font-size: 1.5rem;
+    width: 36px;
+    height: 36px;
+    font-size: 1.3rem;
   }
 
   .mobile-card {
-    padding: 16px;
-    margin-bottom: 14px;
+    padding: 12px;
+    margin-bottom: 8px;
   }
 
   .mobile-card-details {
-    padding: 12px;
-    gap: 12px 16px;
+    padding: 10px;
+    gap: 8px 12px;
   }
 
   .tfa-form-actions {
@@ -1442,6 +1637,6 @@ tr.row-po-sent .btn:disabled {
   }
 
   .modal {
-    padding: 20px 16px;
+    padding: 18px 14px;
   }
 }

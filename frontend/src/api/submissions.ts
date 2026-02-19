@@ -172,6 +172,27 @@ export async function fetchNetSuiteVendors(token: string): Promise<NetSuiteVendo
   return data.vendors || [];
 }
 
+export interface NetSuiteAccount {
+  id: string;
+  number: string;
+  name: string;
+}
+
+export async function fetchNetSuiteAccounts(token: string): Promise<NetSuiteAccount[]> {
+  const response = await fetch(`${API_BASE}/netsuite/accounts`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch accounts: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.accounts || [];
+}
+
 export interface PurchaseOrderInput {
   submissionId: string;
   vendorName: string;
@@ -183,18 +204,22 @@ export interface PurchaseOrderInput {
   programCategory: string;
   amount: number;
   memo: string;
+  tfaNotes: string;
   clientTypeId?: string;
+  clientCategoryId?: string;
   financialAssistanceTypeId?: string;
   assistanceMonthId?: string;
   lineItems: Array<{
     itemId: string;
     departmentId: string;
     classId: string;
+    accountId?: string;
     description: string;
     quantity: number;
     rate: number;
     amount: number;
   }>;
+  attachmentBlobNames?: string[];
   dryRun?: boolean;
 }
 

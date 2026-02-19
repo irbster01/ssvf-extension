@@ -164,6 +164,7 @@ export async function CaptureIngest(
       region: formData.region as ServiceCapture['region'],
       program_category: formData.program_category as ServiceCapture['program_category'],
       tfa_date: formData.tfa_date as string | undefined,
+      notes: formData.notes as string | undefined,
     };
 
     // Build the capture document
