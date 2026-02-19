@@ -27,6 +27,8 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [regionFilter, setRegionFilter] = useState<string>('all');
+  const [programFilter, setProgramFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
@@ -298,8 +300,20 @@ function Dashboard() {
     }
   }, [getToken, currentUsername]);
 
+  const hasActiveFilters = statusFilter !== 'all' || regionFilter !== 'all' || programFilter !== 'all' || !!dateFrom || !!dateTo;
+
+  const clearAllFilters = () => {
+    setStatusFilter('all');
+    setRegionFilter('all');
+    setProgramFilter('all');
+    setDateFrom('');
+    setDateTo('');
+  };
+
   const filteredSubmissions = submissions.filter(s => {
     if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+    if (regionFilter !== 'all' && s.region !== regionFilter) return false;
+    if (programFilter !== 'all' && s.program_category !== programFilter) return false;
     if (dateFrom) {
       const captured = new Date(s.captured_at_utc);
       const from = new Date(dateFrom);
@@ -370,7 +384,9 @@ function Dashboard() {
     const fromLabel = dateFrom ? dateFrom : 'all';
     const toLabel = dateTo ? dateTo : 'all';
     const statusLabel = statusFilter !== 'all' ? `-${statusFilter}` : '';
-    link.download = `SSVF-TFA-Report_${fromLabel}_to_${toLabel}${statusLabel}.csv`;
+    const regionLabel = regionFilter !== 'all' ? `-${regionFilter}` : '';
+    const programLabel = programFilter !== 'all' ? `-${abbreviateProgram(programFilter)}` : '';
+    link.download = `SSVF-TFA-Report_${fromLabel}_to_${toLabel}${statusLabel}${regionLabel}${programLabel}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -415,35 +431,44 @@ function Dashboard() {
 
       <div className="table-container">
         <div className="toolbar">
-          <div className="filters">
-            <label htmlFor="status-filter">Status:</label>
-            <select id="status-filter" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-              <option value="all">All ({submissions.length})</option>
+          <div className="filter-row">
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status">
+              <option value="all">All Status ({submissions.length})</option>
               <option value="New">New ({stats.new})</option>
               <option value="Submitted">Submitted ({stats.submitted})</option>
             </select>
-            <span className="filter-divider" />
-            <label htmlFor="date-from">From:</label>
+            <select value={regionFilter} onChange={e => setRegionFilter(e.target.value)} aria-label="Filter by region">
+              <option value="all">All Regions</option>
+              <option value="Shreveport">Shreveport</option>
+              <option value="Monroe">Monroe</option>
+              <option value="Arkansas">Arkansas</option>
+            </select>
+            <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} aria-label="Filter by program">
+              <option value="all">All Programs</option>
+              <option value="Homeless Prevention">HP</option>
+              <option value="Rapid Rehousing">RR</option>
+            </select>
             <input
-              id="date-from"
               type="date"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
               className="date-input"
+              aria-label="Date from"
+              placeholder="From"
             />
-            <label htmlFor="date-to">To:</label>
             <input
-              id="date-to"
               type="date"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
               className="date-input"
+              aria-label="Date to"
+              placeholder="To"
             />
-            {(dateFrom || dateTo) && (
+            {hasActiveFilters && (
               <button
                 className="btn btn-small btn-clear"
-                onClick={() => { setDateFrom(''); setDateTo(''); }}
-                title="Clear date filter"
+                onClick={clearAllFilters}
+                title="Clear all filters"
               >
                 Clear
               </button>
@@ -455,7 +480,7 @@ function Dashboard() {
               className="btn btn-secondary"
               onClick={exportCSV}
               disabled={filteredSubmissions.length === 0}
-              title={filteredSubmissions.length === 0 ? 'No records to export' : `Export ${filteredSubmissions.length} records to CSV`}
+              title={filteredSubmissions.length === 0 ? 'No records to export' : `Export ${filteredSubmissions.length} filtered records to CSV`}
             >
               Export CSV
             </button>
@@ -492,20 +517,24 @@ function Dashboard() {
                 </td>
               </tr>
             ) : (
-              filteredSubmissions.map(submission => (
-                <tr key={submission.id} className={submission.entered_in_system ? 'row-entered' : 'row-not-entered'}>
+              filteredSubmissions.map(submission => {
+                const isDead = !!submission.po_number && !!submission.entered_in_system;
+                return (
+                <tr key={submission.id} className={`${submission.entered_in_system ? 'row-entered' : 'row-not-entered'}${isDead ? ' row-po-sent' : ''}`}>
                   <td>
                     <select
                       className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
                       value={submission.status}
                       onChange={e => handleStatusChange(submission, e.target.value as SubmissionStatus)}
+                      disabled={isDead}
                       aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
                       style={{ 
                         border: 'none', 
-                        cursor: 'pointer',
+                        cursor: isDead ? 'default' : 'pointer',
                         background: 'inherit',
                         color: 'inherit',
                         fontWeight: 600,
+                        opacity: isDead ? 0.6 : 1,
                       }}
                     >
                       {STATUS_OPTIONS.map(status => (
@@ -547,7 +576,7 @@ function Dashboard() {
                       <button
                         className="btn btn-primary btn-small"
                         onClick={() => setPoSubmission(submission)}
-                        disabled={!!submission.po_number}
+                        disabled={isDead}
                         aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
                       >
                         PO
@@ -555,6 +584,7 @@ function Dashboard() {
                       <button
                         className="btn btn-secondary btn-small"
                         onClick={() => setEditingSubmission(submission)}
+                        disabled={isDead}
                         aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
                       >
                         Edit
@@ -575,7 +605,8 @@ function Dashboard() {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -585,13 +616,16 @@ function Dashboard() {
           {filteredSubmissions.length === 0 ? (
             <div className="mobile-card-empty">No submissions found</div>
           ) : (
-            filteredSubmissions.map(submission => (
-              <article key={submission.id} className={`mobile-card${submission.entered_in_system ? ' card-entered' : ''}`} role="listitem">
+            filteredSubmissions.map(submission => {
+              const isDead = !!submission.po_number && !!submission.entered_in_system;
+              return (
+              <article key={submission.id} className={`mobile-card${submission.entered_in_system ? ' card-entered' : ''}${isDead ? ' card-po-sent' : ''}`} role="listitem">
                 <div className="mobile-card-top">
                   <select
                     className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
                     value={submission.status}
                     onChange={e => handleStatusChange(submission, e.target.value as SubmissionStatus)}
+                    disabled={isDead}
                     aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
                   >
                     {STATUS_OPTIONS.map(status => (
@@ -638,15 +672,16 @@ function Dashboard() {
                   <button
                     className="btn btn-primary mobile-card-edit"
                     onClick={() => setPoSubmission(submission)}
-                    disabled={!!submission.po_number}
+                    disabled={isDead}
                     aria-label={`Create PO for ${submission.client_name || submission.client_id || 'unknown'}`}
                     style={{ flex: 1 }}
                   >
-                    {submission.po_number ? 'PO Sent' : 'Create PO'}
+                    {isDead ? 'PO Sent' : 'Create PO'}
                   </button>
                   <button
                     className="btn btn-secondary mobile-card-edit"
                     onClick={() => setEditingSubmission(submission)}
+                    disabled={isDead}
                     aria-label={`Edit submission for ${submission.client_name || submission.client_id || 'unknown'}`}
                     style={{ flex: 1 }}
                   >
@@ -668,7 +703,8 @@ function Dashboard() {
                   </button>
                 </div>
               </article>
-            ))
+              );
+            })
           )}
         </div>
       </div>

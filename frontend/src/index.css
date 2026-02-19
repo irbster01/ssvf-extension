@@ -101,17 +101,17 @@ header h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 10px 16px;
   background: #fafafa;
   border-bottom: 1px solid #e0e0e0;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -130,13 +130,36 @@ header h1 {
   vertical-align: middle;
 }
 
-.date-input {
-  padding: 8px 10px;
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-row select,
+.filter-row input {
+  padding: 5px 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  background: white;
+  color: #333;
+}
+
+.filter-row select {
+  cursor: pointer;
+  min-width: 0;
+}
+
+.date-input {
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.82rem;
   color: #333;
   background: white;
+  max-width: 130px;
 }
 
 .date-input:focus {
@@ -161,12 +184,12 @@ header h1 {
 
 .filters {
   display: flex;
-  gap: 12px;
+  gap: 6px;
   align-items: center;
 }
 
 .filters select, .filters input {
-  padding: 8px 12px;
+  padding: 5px 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
 }
@@ -244,6 +267,21 @@ tr.row-entered {
 
 tr.row-entered td:first-child {
   padding-left: 9px; /* compensate for 3px border */
+}
+
+/* PO sent — row is "dead" */
+tr.row-po-sent {
+  background: #f7f7f7;
+  opacity: 0.55;
+}
+
+tr.row-po-sent:hover {
+  background: #f3f3f3;
+}
+
+tr.row-po-sent .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .entered-indicator {
@@ -591,6 +629,23 @@ tr.row-entered td:first-child {
 /* ========== Purchase Order Modal ========== */
 .po-modal {
   max-width: 560px;
+  overflow-x: hidden;
+}
+
+.po-select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #d0d0d0;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.po-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .po-header {
@@ -646,15 +701,16 @@ tr.row-entered td:first-child {
 
 .po-line-table th {
   background: #f5f5f5;
-  padding: 8px 12px;
+  padding: 8px 8px;
   font-size: 0.75rem;
   text-transform: uppercase;
   color: #666;
 }
 
 .po-line-table td {
-  padding: 10px 12px;
+  padding: 10px 8px;
   border-bottom: 1px solid #eee;
+  word-break: break-word;
 }
 
 .po-line-table tfoot td {
@@ -942,6 +998,16 @@ tr.row-entered td:first-child {
   border-left-color: #10b981;
 }
 
+.mobile-card.card-po-sent {
+  opacity: 0.55;
+  background: #f7f7f7;
+}
+
+.mobile-card.card-po-sent .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .mobile-card-top {
   display: flex;
   justify-content: space-between;
@@ -1100,36 +1166,49 @@ tr.row-entered td:first-child {
 
   .toolbar {
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     align-items: stretch;
-    padding: 16px;
+    padding: 10px 12px;
   }
 
-  .toolbar .filters {
+  .toolbar .filters,
+  .toolbar .filter-row {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
 
   .toolbar-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
+    gap: 6px;
   }
 
   .toolbar .btn {
-    padding: 12px;
-    font-size: 1rem;
+    padding: 10px;
+    font-size: 0.9rem;
   }
 
-  .filters {
-    flex-direction: column;
-    gap: 10px;
+  .filters,
+  .filter-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
+  .filter-row select,
+  .filter-row input,
   .filters select,
   .filters input {
-    padding: 12px 14px;
-    font-size: 1rem;
-    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    flex: 1 1 auto;
+    min-width: 100px;
+  }
+
+  .filter-row .date-input {
+    max-width: none;
+    flex: 1 1 130px;
   }
 
   /* TFA form mobile */
@@ -1247,6 +1326,18 @@ tr.row-entered td:first-child {
   /* PO Modal mobile */
   .po-modal {
     max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .po-form-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .po-select {
+    padding: 12px;
+    font-size: 16px; /* Prevents iOS zoom */
+    border-radius: 8px;
   }
 
   .po-info-grid {
@@ -1259,10 +1350,14 @@ tr.row-entered td:first-child {
     margin-bottom: 20px;
   }
 
+  .po-line-table {
+    font-size: 0.82rem;
+  }
+
   .po-line-table th,
   .po-line-table td {
-    padding: 10px 8px;
-    font-size: 0.85rem;
+    padding: 8px 6px;
+    font-size: 0.82rem;
   }
 
   /* Vendor autocomplete mobile */

@@ -8,7 +8,7 @@ const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 // Rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 10; // 10 requests per minute
+const RATE_LIMIT_MAX = 60; // 60 requests per minute
 
 function cleanupExpiredTokens() {
   const now = Date.now();

@@ -94,8 +94,11 @@ export async function GetSubmissions(
       const startDate = request.query.get('startDate') || undefined;
       const endDate = request.query.get('endDate') || undefined;
       const serviceType = request.query.get('serviceType') || undefined;
+      // When myOnly=true, filter to only this user's submissions using the auth token email
+      const myOnly = request.query.get('myOnly') === 'true';
+      const userId = myOnly ? (auth.email || auth.userId) : (request.query.get('userId') || undefined);
       
-      const submissions = await queryCaptures({ startDate, endDate, serviceType });
+      const submissions = await queryCaptures({ startDate, endDate, serviceType, userId });
       
       context.log(`Found ${submissions.length} submissions`);
       

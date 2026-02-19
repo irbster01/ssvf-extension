@@ -484,7 +484,7 @@ export const PopupApp: React.FC = () => {
         return;
       }
 
-      let response = await fetch(`${API_URL.replace('/captures', '/submissions')}`, {
+      let response = await fetch(`${API_URL.replace('/captures', '/submissions')}?myOnly=true`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -497,7 +497,7 @@ export const PopupApp: React.FC = () => {
         
         if (newToken) {
           // Retry with new token
-          response = await fetch(`${API_URL.replace('/captures', '/submissions')}`, {
+          response = await fetch(`${API_URL.replace('/captures', '/submissions')}?myOnly=true`, {
             headers: {
               'Authorization': `Bearer ${newToken}`,
               'Content-Type': 'application/json',

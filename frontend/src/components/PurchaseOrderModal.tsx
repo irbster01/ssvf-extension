@@ -284,7 +284,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal po-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+      <div className="modal po-modal" onClick={e => e.stopPropagation()}>
         <div className="po-header">
           <h2 style={{ margin: 0 }}>Create Purchase Order</h2>
           <p style={{ margin: '4px 0 0', color: '#666', fontSize: '0.9rem' }}>
@@ -404,13 +404,13 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
               <span className="po-info-value">{submission.program_category || '—'}</span>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
+          <div className="po-form-grid">
             <div className="form-group" style={{ margin: 0 }}>
               <label>Client Type</label>
               <select
                 value={selectedClientTypeId}
                 onChange={e => setSelectedClientTypeId(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+                className="po-select"
               >
                 <option value="">— Select —</option>
                 {CLIENT_TYPES.map(ct => (
@@ -423,7 +423,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
               <select
                 value={selectedFATypeId}
                 onChange={e => setSelectedFATypeId(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+                className="po-select"
               >
                 <option value="">— Select —</option>
                 {FINANCIAL_ASSISTANCE_TYPES.map(fa => (
@@ -437,7 +437,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
             <select
               value={selectedMonthId}
               onChange={e => setSelectedMonthId(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+              className="po-select"
             >
               <option value="">— Select —</option>
               {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
@@ -455,20 +455,20 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
             <select
               value={selectedItemId}
               onChange={e => setSelectedItemId(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+              className="po-select"
             >
               {NETSUITE_ITEMS.map(it => (
                 <option key={it.id} value={it.id}>{it.name}</option>
               ))}
             </select>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          <div className="po-form-grid" style={{ marginBottom: '12px' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label>Department</label>
               <select
                 value={selectedDeptId}
                 onChange={e => setSelectedDeptId(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+                className="po-select"
               >
                 {NETSUITE_DEPARTMENTS.map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
@@ -480,7 +480,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
               <select
                 value={selectedSiteId}
                 onChange={e => setSelectedSiteId(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #d0d0d0', fontSize: '0.95rem' }}
+                className="po-select"
               >
                 {NETSUITE_SITES.map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>

@@ -138,7 +138,7 @@ export async function queryCaptures(options: QueryOptions = {}): Promise<Service
   }
 
   if (options.userId) {
-    query += ' AND c.user_id = @userId';
+    query += ' AND LOWER(c.user_id) = LOWER(@userId)';
     parameters.push({ name: '@userId', value: options.userId });
   }
 
