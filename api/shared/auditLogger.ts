@@ -56,7 +56,7 @@ export function logAuditEvent(context: InvocationContext, event: AuditEvent): vo
  * Helper: extract client IP from Azure Functions request headers.
  * Azure passes the real client IP in x-forwarded-for or x-client-ip.
  */
-export function getClientIp(headers: Headers): string {
+export function getClientIp(headers: { get(name: string): string | null }): string {
   return (
     headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     headers.get('x-client-ip') ||
@@ -69,7 +69,7 @@ export function getClientIp(headers: Headers): string {
  * Helper: create a base audit event from a request.
  */
 export function createBaseAuditEvent(
-  request: { headers: Headers; method: string; url: string },
+  request: { headers: { get(name: string): string | null }; method: string; url: string },
   endpoint: string
 ): Pick<AuditEvent, 'ipAddress' | 'origin' | 'endpoint' | 'method' | 'timestamp'> {
   return {

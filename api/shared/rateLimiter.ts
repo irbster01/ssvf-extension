@@ -41,6 +41,7 @@ async function ensureRedis(): Promise<RedisLike | null> {
 
   try {
     // Dynamic import so the module is optional
+    // @ts-ignore - redis types may not be installed
     const redis = await import('redis');
     const client = redis.createClient({ url: connectionString });
     client.on('error', (err: Error) => {

@@ -1,9 +1,10 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { saveCapture, ServiceCapture } from '../shared/cosmosClient';
 import { CapturePayload } from '../shared/types';
-import { validateToken, checkRateLimit } from '../AuthToken';
+import { validateToken } from '../AuthToken';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
+import { checkRateLimitDistributed } from '../shared/rateLimiter';
 
 const MAX_PAYLOAD_SIZE = 1024 * 1024; // 1MB limit
 
@@ -85,7 +86,7 @@ export async function CaptureIngest(
   }
 
   // Rate limiting check
-  const rateLimitCheck = checkRateLimit(userId);
+  const rateLimitCheck = await checkRateLimitDistributed(userId);
   if (!rateLimitCheck.allowed) {
     logAuditEvent(context, { ...baseAudit, event: 'RATE_LIMIT_EXCEEDED', userId, email: userEmail, success: false });
     return {

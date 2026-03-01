@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getMessagesContainer, getContainer } from '../shared/cosmosClient';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
-import { checkRateLimit } from '../AuthToken';
+import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { Message, MessagePayload } from '../shared/types';
 import { sendSignalRMessage } from '../SignalR';
 import { sendEmail, buildMessageNotificationEmail } from '../shared/graphClient';
@@ -66,7 +66,7 @@ async function GetMessages(
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
-  const rateLimitCheck = checkRateLimit(auth.userId);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
@@ -115,7 +115,7 @@ async function PostMessage(
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
-  const rateLimitCheck = checkRateLimit(auth.userId);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
