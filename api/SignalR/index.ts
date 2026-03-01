@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
-import { checkRateLimit } from '../AuthToken';
+import { checkRateLimitDistributed } from '../shared/rateLimiter';
+import jwt from 'jsonwebtoken';
 
 // SignalR Service REST API helpers
 // Uses Azure SignalR Service in serverless mode
@@ -37,9 +38,6 @@ function getCorsHeaders(origin: string) {
  * Generate a HMAC-SHA256 JWT for SignalR client access
  */
 function generateSignalRToken(userId: string, expiryMinutes: number = 60): string {
-  // We use jsonwebtoken which is already in the project
-  const jwt = require('jsonwebtoken');
-
   const audience = `${SIGNALR_ENDPOINT}/client/?hub=${SIGNALR_HUB}`;
   const now = Math.floor(Date.now() / 1000);
 
@@ -86,7 +84,7 @@ async function SignalRNegotiate(
   }
 
   // Rate limit
-  const rateLimitCheck = checkRateLimit(validation.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(validation.userId!);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
@@ -109,7 +107,7 @@ async function SignalRNegotiate(
     const signalRToken = generateSignalRToken(validation.email);
     const url = `${SIGNALR_ENDPOINT}/client/?hub=${SIGNALR_HUB}`;
 
-    context.log(`[SignalR] Negotiate for user: ${validation.email}`);
+    context.log('[SignalR] Negotiate successful');
 
     return {
       status: 200,
@@ -141,7 +139,6 @@ export async function sendSignalRMessage(
   }
 
   try {
-    const jwt = require('jsonwebtoken');
     const audience = `${SIGNALR_ENDPOINT}/api/v1/hubs/${SIGNALR_HUB}/users/${encodeURIComponent(userId)}`;
     const now = Math.floor(Date.now() / 1000);
     const token = jwt.sign(
@@ -166,7 +163,7 @@ export async function sendSignalRMessage(
     if (!response.ok) {
       console.error(`[SignalR] Failed to send to ${userId}: ${response.status}`);
     } else {
-      console.log(`[SignalR] Sent "${eventName}" to ${userId}`);
+      console.log(`[SignalR] Sent "${eventName}" successfully`);
     }
   } catch (error: any) {
     console.error('[SignalR] Send error:', error.message);

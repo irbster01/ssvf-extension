@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryCaptures, updateCapture, ServiceCapture } from '../shared/cosmosClient';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
-import { checkRateLimit } from '../AuthToken';
+import { checkRateLimitDistributed } from '../shared/rateLimiter';
 
 // Allowed origins for the accounting dashboard
 const ALLOWED_ORIGINS = [
@@ -77,7 +77,7 @@ export async function GetSubmissions(
   }
 
   // Rate limiting
-  const rateLimitCheck = checkRateLimit(auth.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId!);
   if (!rateLimitCheck.allowed) {
     return {
       status: 429,
@@ -151,7 +151,7 @@ export async function UpdateSubmission(
   }
 
   // Rate limiting
-  const rateLimitCheck = checkRateLimit(auth.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId!);
   if (!rateLimitCheck.allowed) {
     return {
       status: 429,

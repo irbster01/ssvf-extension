@@ -181,14 +181,6 @@ export async function getCurrentAccount(): Promise<{ name: string; username: str
 }
 
 /**
- * Check if user is currently authenticated
- */
-export async function isAuthenticated(): Promise<boolean> {
-  const account = await getCurrentAccount();
-  return account !== null;
-}
-
-/**
  * Try to silently refresh the token using cached auth
  * Returns the new token if successful, null if user needs to re-authenticate interactively
  */
@@ -245,11 +237,4 @@ export async function getValidToken(): Promise<string | null> {
       resolve(refreshed);
     });
   });
-}
-
-/**
- * Clear the stored auth token (call when 401 received)
- */
-export async function clearAuthToken(): Promise<void> {
-  await chrome.storage.local.remove(['authToken']);
 }

@@ -2,7 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { uploadAttachment, getAttachmentDownloadUrl, AttachmentMeta } from '../shared/blobStorage';
 import { getContainer, ServiceCapture } from '../shared/cosmosClient';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
-import { checkRateLimit } from '../AuthToken';
+import { checkRateLimitDistributed } from '../shared/rateLimiter';
 
 const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
@@ -69,7 +69,7 @@ export async function UploadAttachment(
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
-  const rateLimitCheck = checkRateLimit(auth.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId!);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }

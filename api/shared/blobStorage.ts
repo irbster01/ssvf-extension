@@ -130,12 +130,3 @@ export async function downloadAttachment(blobName: string): Promise<{ buffer: Bu
     fileName,
   };
 }
-
-/**
- * Delete a blob attachment
- */
-export async function deleteAttachment(blobName: string): Promise<void> {
-  const container = getContainerClient();
-  const blobClient = container.getBlobClient(blobName);
-  await blobClient.deleteIfExists();
-}

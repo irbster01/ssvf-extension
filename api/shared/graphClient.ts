@@ -59,9 +59,9 @@ export async function sendEmail(
 
   try {
     await client.api(`/users/${fromEmail}/sendMail`).post({ message });
-    console.log(`[GraphClient] Email sent to ${to}: "${subject}"`);
+    console.log(`[GraphClient] Email sent successfully: "${subject}"`);
   } catch (error: any) {
-    console.error(`[GraphClient] Failed to send email to ${to}:`, error.message);
+    console.error('[GraphClient] Failed to send email:', error.message);
     // Don't throw — email failure shouldn't block the message from being saved
   }
 }

@@ -1,6 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryCaptures, ServiceCapture } from '../shared/cosmosClient';
-import { checkRateLimit } from '../AuthToken';
+import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 
 export async function ViewLogs(
@@ -72,7 +72,7 @@ export async function ViewLogs(
   }
 
   // Rate limiting check
-  const rateLimitCheck = checkRateLimit(userId);
+  const rateLimitCheck = await checkRateLimitDistributed(userId);
   if (!rateLimitCheck.allowed) {
     context.warn(`❌ Rate limit exceeded for user: ${userId}`);
     return {

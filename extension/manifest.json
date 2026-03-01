@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "VOANLA TFA to SharePoint",
-  "version": "1.5.0",
-  "description": "Captures TFA service submission data and sends to SharePoint via Azure backend",
+  "name": "SSVF TFA Tracker",
+  "version": "1.6.0",
+  "description": "Captures TFA service submission data and manages SSVF financial assistance workflows",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

@@ -113,8 +113,9 @@ export async function saveCapture(capture: ServiceCapture): Promise<string> {
 }
 
 /**
- * Query captures with optional filters
- * Useful for exports to accounting
+ * Query captures with optional filters.
+ * Supports pagination via limit/offset (defaults to first 200).
+ * Returns { items, totalCount, hasMore } so callers can paginate.
  */
 export async function queryCaptures(options: QueryOptions = {}): Promise<ServiceCapture[]> {
   const cont = await getContainer();
@@ -144,12 +145,78 @@ export async function queryCaptures(options: QueryOptions = {}): Promise<Service
 
   query += ' ORDER BY c.captured_at_utc DESC';
 
+  // Use OFFSET/LIMIT for pagination
+  const limit = options.limit ?? 200;
+  const offset = options.offset ?? 0;
+  query += ` OFFSET ${offset} LIMIT ${limit}`;
+
   const { resources } = await cont.items.query<ServiceCapture>({
     query,
     parameters,
   }).fetchAll();
 
   return resources;
+}
+
+/**
+ * Paginated query that returns items + metadata for pagination.
+ */
+export async function queryCapturesPaginated(options: QueryOptions = {}): Promise<PaginatedResult<ServiceCapture>> {
+  const cont = await getContainer();
+
+  // Build WHERE clause
+  let where = 'WHERE 1=1';
+  const parameters: { name: string; value: any }[] = [];
+
+  if (options.serviceType) {
+    where += ' AND c.service_type = @serviceType';
+    parameters.push({ name: '@serviceType', value: options.serviceType });
+  }
+  if (options.startDate) {
+    where += ' AND c.captured_at_utc >= @startDate';
+    parameters.push({ name: '@startDate', value: options.startDate });
+  }
+  if (options.endDate) {
+    where += ' AND c.captured_at_utc <= @endDate';
+    parameters.push({ name: '@endDate', value: options.endDate });
+  }
+  if (options.userId) {
+    where += ' AND LOWER(c.user_id) = LOWER(@userId)';
+    parameters.push({ name: '@userId', value: options.userId });
+  }
+
+  // Count query
+  const countQuery = `SELECT VALUE COUNT(1) FROM c ${where}`;
+  const { resources: countResult } = await cont.items.query<number>({
+    query: countQuery,
+    parameters,
+  }).fetchAll();
+  const totalCount = countResult[0] ?? 0;
+
+  // Data query with pagination
+  const limit = options.limit ?? 200;
+  const offset = options.offset ?? 0;
+  const dataQuery = `SELECT * FROM c ${where} ORDER BY c.captured_at_utc DESC OFFSET ${offset} LIMIT ${limit}`;
+  const { resources: items } = await cont.items.query<ServiceCapture>({
+    query: dataQuery,
+    parameters,
+  }).fetchAll();
+
+  return {
+    items,
+    totalCount,
+    offset,
+    limit,
+    hasMore: offset + items.length < totalCount,
+  };
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  totalCount: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
 }
 
 /**
@@ -186,7 +253,7 @@ export async function updateCapture(
   return resource as ServiceCapture;
 }
 
-export type SubmissionStatus = 'New' | 'Submitted';
+export type SubmissionStatus = 'New' | 'Corrections' | 'In Review' | 'Submitted';
 
 export interface ServiceCapture {
   id?: string;
@@ -235,4 +302,6 @@ export interface QueryOptions {
   startDate?: string;
   endDate?: string;
   userId?: string;
+  limit?: number;
+  offset?: number;
 }

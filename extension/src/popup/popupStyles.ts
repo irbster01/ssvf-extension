@@ -1,0 +1,143 @@
+/** Shared inline styles for the extension popup */
+
+export const popupStyles = {
+  container: {
+    width: '380px',
+    minHeight: '480px',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    backgroundColor: '#f8f9fa',
+  },
+  header: {
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '16px 20px',
+    color: 'white',
+  },
+  headerTitle: {
+    fontSize: '18px',
+    margin: 0,
+    fontWeight: 600,
+  },
+  headerSubtitle: {
+    fontSize: '12px',
+    margin: '4px 0 0 0',
+    opacity: 0.9,
+  },
+  tabs: {
+    display: 'flex',
+    backgroundColor: 'white',
+    borderBottom: '1px solid #e5e7eb',
+  },
+  tab: (active: boolean) => ({
+    flex: 1,
+    padding: '12px',
+    fontSize: '13px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    border: 'none',
+    background: active ? 'white' : '#f9fafb',
+    color: active ? '#667eea' : '#6b7280',
+    borderBottom: active ? '2px solid #667eea' : '2px solid transparent',
+    transition: 'all 0.2s',
+  }),
+  content: {
+    padding: '16px',
+  },
+  card: {
+    backgroundColor: 'white',
+    padding: '16px',
+    borderRadius: '8px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    marginBottom: '12px',
+  },
+  userCard: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  avatar: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 600,
+  },
+  statGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr',
+    gap: '10px',
+    marginBottom: '12px',
+  },
+  statCard: {
+    backgroundColor: 'white',
+    padding: '12px',
+    borderRadius: '8px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    textAlign: 'center' as const,
+  },
+  statValue: (color: string) => ({
+    fontSize: '22px',
+    fontWeight: 700,
+    color,
+  }),
+  statLabel: {
+    fontSize: '10px',
+    color: '#6b7280',
+    marginTop: '2px',
+  },
+  btn: (variant: 'primary' | 'secondary' | 'danger') => ({
+    padding: '10px 16px',
+    fontSize: '13px',
+    fontWeight: 600,
+    borderRadius: '6px',
+    cursor: 'pointer',
+    border: 'none',
+    width: '100%',
+    transition: 'all 0.2s',
+    ...(variant === 'primary' && {
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+    }),
+    ...(variant === 'secondary' && {
+      background: '#f3f4f6',
+      color: '#4b5563',
+      border: '1px solid #e5e7eb',
+    }),
+    ...(variant === 'danger' && {
+      background: 'transparent',
+      color: '#ef4444',
+      border: '1px solid #fecaca',
+    }),
+  }),
+  input: {
+    width: '100%',
+    padding: '10px 12px',
+    fontSize: '13px',
+    border: '1px solid #e5e7eb',
+    borderRadius: '6px',
+    marginBottom: '10px',
+    boxSizing: 'border-box' as const,
+  },
+  label: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#374151',
+    marginBottom: '4px',
+    display: 'block',
+  },
+  message: (type: 'success' | 'error') => ({
+    padding: '10px 12px',
+    borderRadius: '6px',
+    fontSize: '13px',
+    marginBottom: '12px',
+    backgroundColor: type === 'success' ? '#d1fae5' : '#fee2e2',
+    color: type === 'success' ? '#065f46' : '#991b1b',
+    border: `1px solid ${type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+  }),
+};
+
+export type PopupStyles = typeof popupStyles;

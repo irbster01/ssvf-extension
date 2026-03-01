@@ -1,14 +1,10 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { randomBytes, createHash } from 'crypto';
+import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
 
 // In-memory token store (legacy auth — used by Chrome extension only)
 const tokenStore = new Map<string, { userId: string; createdAt: number; lastUsed: number }>();
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
-
-// Rate limiting store
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 60; // 60 requests per minute
 
 function cleanupExpiredTokens() {
   const now = Date.now();
@@ -68,7 +64,12 @@ export async function AuthToken(
     // Generate and return session token
     const token = generateSecureToken(body.userId);
     
-    context.log(`✅ Generated auth token for user: ${body.userId}`);
+    logAuditEvent(context, {
+      ...createBaseAuditEvent(request, '/api/auth/token'),
+      event: 'AUTH_SUCCESS',
+      userId: body.userId,
+      success: true,
+    });
     
     return {
       status: 200,
@@ -80,6 +81,12 @@ export async function AuthToken(
     };
   } catch (error) {
     context.error('Auth token error:', error);
+    logAuditEvent(context, {
+      ...createBaseAuditEvent(request, '/api/auth/token'),
+      event: 'AUTH_FAILURE',
+      success: false,
+      details: { reason: 'server_error' },
+    });
     return {
       status: 500,
       jsonBody: { error: 'Server error' },
@@ -107,27 +114,6 @@ export function validateToken(token: string): { valid: boolean; userId?: string 
   data.lastUsed = now;
   
   return { valid: true, userId: data.userId };
-}
-
-export function checkRateLimit(userId: string): { allowed: boolean; remainingRequests?: number } {
-  const now = Date.now();
-  const userLimit = rateLimitStore.get(userId);
-  
-  if (!userLimit || now > userLimit.resetAt) {
-    // Reset or create new limit
-    rateLimitStore.set(userId, {
-      count: 1,
-      resetAt: now + RATE_LIMIT_WINDOW,
-    });
-    return { allowed: true, remainingRequests: RATE_LIMIT_MAX - 1 };
-  }
-  
-  if (userLimit.count >= RATE_LIMIT_MAX) {
-    return { allowed: false };
-  }
-  
-  userLimit.count++;
-  return { allowed: true, remainingRequests: RATE_LIMIT_MAX - userLimit.count };
 }
 
 app.http('AuthToken', {

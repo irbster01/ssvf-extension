@@ -3,6 +3,7 @@ import { saveCapture, ServiceCapture } from '../shared/cosmosClient';
 import { CapturePayload } from '../shared/types';
 import { validateToken, checkRateLimit } from '../AuthToken';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
+import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
 
 const MAX_PAYLOAD_SIZE = 1024 * 1024; // 1MB limit
 
@@ -51,13 +52,14 @@ export async function CaptureIngest(
   const token = authHeader.substring(7);
   let userId: string | undefined;
   let userEmail: string | undefined;
+  const baseAudit = createBaseAuditEvent(request, '/api/captures');
   
   // Determine token type and validate accordingly
   if (isJwtToken(token)) {
     // Entra ID JWT token
     const entraValidation = await validateEntraIdToken(token);
     if (!entraValidation.valid || !entraValidation.userId) {
-      context.warn('❌ Invalid or expired Entra ID token');
+      logAuditEvent(context, { ...baseAudit, event: 'AUTH_FAILURE', success: false, details: { method: 'entra_id', reason: 'invalid_or_expired' } });
       return {
         status: 401,
         jsonBody: { error: 'Unauthorized' },
@@ -66,12 +68,12 @@ export async function CaptureIngest(
     }
     userId = entraValidation.email || entraValidation.userId;
     userEmail = entraValidation.email;
-    context.log(`✅ Authenticated via Entra ID: ${userEmail || userId}`);
+    logAuditEvent(context, { ...baseAudit, event: 'AUTH_SUCCESS', userId, email: userEmail, success: true, details: { method: 'entra_id' } });
   } else {
     // Legacy token (for backwards compatibility)
     const tokenValidation = validateToken(token);
     if (!tokenValidation.valid || !tokenValidation.userId) {
-      context.warn('❌ Invalid or expired legacy token');
+      logAuditEvent(context, { ...baseAudit, event: 'AUTH_FAILURE', success: false, details: { method: 'legacy', reason: 'invalid_or_expired' } });
       return {
         status: 401,
         jsonBody: { error: 'Unauthorized' },
@@ -79,13 +81,13 @@ export async function CaptureIngest(
       };
     }
     userId = tokenValidation.userId;
-    context.log(`✅ Authenticated via legacy token: ${userId}`);
+    logAuditEvent(context, { ...baseAudit, event: 'AUTH_SUCCESS', userId, success: true, details: { method: 'legacy' } });
   }
 
   // Rate limiting check
   const rateLimitCheck = checkRateLimit(userId);
   if (!rateLimitCheck.allowed) {
-    context.warn(`❌ Rate limit exceeded for user: ${userId}`);
+    logAuditEvent(context, { ...baseAudit, event: 'RATE_LIMIT_EXCEEDED', userId, email: userEmail, success: false });
     return {
       status: 429,
       jsonBody: { error: 'Too many requests' },

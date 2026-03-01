@@ -29,7 +29,7 @@ export async function validateEntraIdToken(token: string): Promise<{ valid: bool
     const decoded = jwt.decode(token, { complete: true });
     
     if (!decoded || !decoded.payload) {
-      console.log('[EntraID] Invalid token structure');
+      console.warn('[EntraID] Invalid token structure');
       return { valid: false };
     }
     
@@ -38,13 +38,13 @@ export async function validateEntraIdToken(token: string): Promise<{ valid: bool
     // Check if token is expired
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) {
-      console.log('[EntraID] Token expired');
+      console.warn('[EntraID] Token expired');
       return { valid: false };
     }
     
     // Verify tenant ID matches (basic security check)
     if (payload.tid && payload.tid !== TENANT_ID) {
-      console.log(`[EntraID] Token from wrong tenant: ${payload.tid}`);
+      console.warn('[EntraID] Token from wrong tenant');
       return { valid: false };
     }
     
@@ -54,11 +54,9 @@ export async function validateEntraIdToken(token: string): Promise<{ valid: bool
     const email = payload.preferred_username || payload.upn || payload.unique_name || payload.email;
     
     if (!userId) {
-      console.log('[EntraID] No user ID in token');
+      console.warn('[EntraID] No user ID in token');
       return { valid: false };
     }
-    
-    console.log(`[EntraID] Token valid for user: ${email || userId}`);
     
     return {
       valid: true,

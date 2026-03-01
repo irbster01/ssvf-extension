@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getMessagesContainer } from '../shared/cosmosClient';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
-import { checkRateLimit } from '../AuthToken';
+import { checkRateLimitDistributed } from '../shared/rateLimiter';
 
 const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
@@ -57,7 +57,7 @@ async function UnreadCount(
     return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
   }
 
-  const rateLimitCheck = checkRateLimit(validation.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(validation.userId!);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }

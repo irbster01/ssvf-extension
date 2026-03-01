@@ -1,11 +1,13 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryCaptures, QueryOptions } from '../shared/cosmosClient';
 import { validateToken } from '../AuthToken';
+import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 
 /**
  * Export captures for accounting/reporting
  * Supports filtering by date range, service type, etc.
  * Returns JSON (can be easily converted to CSV by caller)
+ * Accepts both Entra ID JWT tokens and legacy session tokens.
  */
 export async function ExportCaptures(
   request: HttpRequest,
@@ -18,6 +20,7 @@ export async function ExportCaptures(
     'https://ssvf.northla.app',
     'https://wonderful-sand-00129870f.1.azurestaticapps.net',
     'http://localhost:5173',
+    'http://localhost:4280',
   ];
   
   const corsHeaders = {
@@ -31,7 +34,7 @@ export async function ExportCaptures(
     return { status: 204, headers: corsHeaders };
   }
 
-  // Validate token
+  // Validate token — accept both Entra ID JWT and legacy tokens
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
@@ -42,9 +45,26 @@ export async function ExportCaptures(
   }
 
   const token = authHeader.substring(7);
-  const tokenValidation = validateToken(token);
-  
-  if (!tokenValidation.valid) {
+  let authenticated = false;
+
+  if (isJwtToken(token)) {
+    const entraValidation = await validateEntraIdToken(token);
+    if (entraValidation.valid) {
+      authenticated = true;
+      context.log(`✅ ExportCaptures authenticated via Entra ID: ${entraValidation.email || entraValidation.userId}`);
+    }
+  }
+
+  if (!authenticated) {
+    // Fall back to legacy token validation
+    const tokenValidation = validateToken(token);
+    if (tokenValidation.valid) {
+      authenticated = true;
+      context.log(`✅ ExportCaptures authenticated via legacy token: ${tokenValidation.userId}`);
+    }
+  }
+
+  if (!authenticated) {
     return {
       status: 401,
       jsonBody: { error: 'Unauthorized' },
