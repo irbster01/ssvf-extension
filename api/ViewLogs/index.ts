@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryCaptures, ServiceCapture } from '../shared/cosmosClient';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
+import { validateAuthWithRole, isElevated } from '../shared/rbac';
 
 export async function ViewLogs(
   request: HttpRequest,
@@ -32,44 +32,23 @@ export async function ViewLogs(
     };
   }
 
-  // Validate token-based authentication
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    context.warn('❌ ViewLogs: Missing or invalid authorization header');
+  // Auth + RBAC — elevated only
+  const auth = await validateAuthWithRole(request, context);
+  if (!auth.valid) {
     return {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'text/html' },
       body: generateErrorHtml('Unauthorized', 'Please provide a valid authorization token.'),
     };
   }
-
-  const token = authHeader.substring(7);
-  let userId: string | undefined;
-  let userEmail: string | undefined;
-
-  // Validate Entra ID token
-  if (isJwtToken(token)) {
-    const entraValidation = await validateEntraIdToken(token);
-    if (!entraValidation.valid || !entraValidation.userId) {
-      context.warn('❌ ViewLogs: Invalid or expired Entra ID token');
-      return {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'text/html' },
-        body: generateErrorHtml('Unauthorized', 'Invalid or expired token.'),
-      };
-    }
-    userId = entraValidation.email || entraValidation.userId;
-    userEmail = entraValidation.email;
-    context.log(`✅ ViewLogs authenticated: ${userEmail || userId}`);
-  } else {
-    // Reject non-JWT tokens for logs endpoint (more restrictive)
-    context.warn('❌ ViewLogs: Non-JWT token rejected');
+  if (!isElevated(auth.role)) {
     return {
-      status: 401,
+      status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'text/html' },
-      body: generateErrorHtml('Unauthorized', 'JWT token required.'),
+      body: generateErrorHtml('Forbidden', 'Log viewer is restricted to accounting and admin users.'),
     };
   }
+  const userId = auth.email || auth.userId;
 
   // Rate limiting check
   const rateLimitCheck = await checkRateLimitDistributed(userId);

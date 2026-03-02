@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getMessagesContainer } from '../shared/cosmosClient';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
+import { validateAuthWithRole } from '../shared/rbac';
 
 const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
@@ -43,28 +43,20 @@ async function UnreadCount(
     return { status: 204, headers: corsHeaders };
   }
 
-  // Auth
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Auth via centralized RBAC
+  const auth = await validateAuthWithRole(request, context);
+  if (!auth.valid || !auth.email) {
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
-  const token = authHeader.substring(7);
-  if (!isJwtToken(token)) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
-  const validation = await validateEntraIdToken(token);
-  if (!validation.valid || !validation.email) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
 
-  const rateLimitCheck = await checkRateLimitDistributed(validation.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
 
   try {
     const container = await getMessagesContainer();
-    const userEmail = validation.email!;
+    const userEmail = auth.email!;
 
     // Count all messages not sent by this user and not read by this user
     const { resources } = await container.items.query<{ submissionId: string; unreadCount: number }>({

@@ -1,8 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { uploadAttachment, getAttachmentDownloadUrl, AttachmentMeta } from '../shared/blobStorage';
 import { getContainer, ServiceCapture } from '../shared/cosmosClient';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
+import { validateAuthWithRole, canAccessSubmission, AuthResult } from '../shared/rbac';
 
 const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
@@ -27,17 +27,7 @@ function getCorsHeaders(origin: string) {
 }
 
 async function validateAuth(request: HttpRequest, context: InvocationContext) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return { valid: false as const };
-  }
-  const token = authHeader.substring(7);
-  if (!isJwtToken(token)) return { valid: false as const };
-
-  const validation = await validateEntraIdToken(token);
-  if (!validation.valid || !validation.userId) return { valid: false as const };
-
-  return { valid: true as const, userId: validation.userId, email: validation.email };
+  return validateAuthWithRole(request, context);
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -102,6 +92,23 @@ export async function UploadAttachment(
       return { status: 400, jsonBody: { error: `File too large. Max ${MAX_FILE_SIZE / 1024 / 1024}MB` }, headers: corsHeaders };
     }
 
+    // Ownership check — non-elevated users can only attach to their own submissions
+    const container = await getContainer();
+    const partitionKey = body.serviceType || 'TFA';
+    const { resource: existing } = await container.item(submissionId, partitionKey).read<ServiceCapture>();
+
+    if (!existing) {
+      return { status: 404, jsonBody: { error: 'Submission not found' }, headers: corsHeaders };
+    }
+
+    if (!canAccessSubmission(auth, existing.user_id)) {
+      return { status: 403, jsonBody: { error: 'You can only attach files to your own submissions' }, headers: corsHeaders };
+    }
+
+    if (buffer.length > MAX_FILE_SIZE) {
+      return { status: 400, jsonBody: { error: `File too large. Max ${MAX_FILE_SIZE / 1024 / 1024}MB` }, headers: corsHeaders };
+    }
+
     context.log(`Uploading attachment for submission ${submissionId}: ${body.fileName} (${buffer.length} bytes)`);
 
     // Upload to blob storage
@@ -114,14 +121,6 @@ export async function UploadAttachment(
     );
 
     // Update the Cosmos DB document to include attachment metadata
-    const container = await getContainer();
-    const partitionKey = body.serviceType || 'TFA';
-    const { resource: existing } = await container.item(submissionId, partitionKey).read<ServiceCapture>();
-
-    if (!existing) {
-      return { status: 404, jsonBody: { error: 'Submission not found' }, headers: corsHeaders };
-    }
-
     const attachments: AttachmentMeta[] = (existing as any).attachments || [];
     attachments.push(attachment);
 

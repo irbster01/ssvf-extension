@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Submission } from '../types';
 import { NetSuiteVendor } from '../api/submissions';
 
@@ -204,7 +204,8 @@ function getAssistanceMonthId(dateStr: string): string {
 }
 
 function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSubmitPO, onSendBack }: PurchaseOrderModalProps) {
-  const [memo, setMemo] = useState('');
+  const tfaNotes = submission.notes || (submission.form_data?.notes as string) || '';
+  const [memo, setMemo] = useState(tfaNotes);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ type: 'success' | 'error'; text: string; payload?: any; response?: any } | null>(null);
   const [showPayload, setShowPayload] = useState(false);
@@ -213,6 +214,9 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
   const [sendBackMode, setSendBackMode] = useState(false);
   const [sendBackMessage, setSendBackMessage] = useState('');
   const [sendingBack, setSendingBack] = useState(false);
+
+  // Collapsible NetSuite mappings accordion
+  const [showMappings, setShowMappings] = useState(false);
 
   // Vendor autocomplete state
   const [vendorSearch, setVendorSearch] = useState(submission.vendor || '');
@@ -319,6 +323,18 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
     },
   ];
 
+  // Human-readable mapping summary for the collapsed accordion
+  const mappingSummary = useMemo(() => {
+    const dept = NETSUITE_DEPARTMENTS.find(d => d.id === selectedDeptId)?.name || '—';
+    const item = NETSUITE_ITEMS.find(i => i.id === selectedItemId)?.name?.replace('Client:', '').trim() || '—';
+    const acct = NETSUITE_ACCOUNTS.find(a => a.id === selectedAccountId);
+    const acctStr = acct ? `${acct.number} ${acct.name}` : '—';
+    return `${dept} · ${item} · ${acctStr}`;
+  }, [selectedDeptId, selectedItemId, selectedAccountId]);
+
+  // Validation: vendor must be selected
+  const isValid = !!selectedVendor;
+
   const handleSubmit = async () => {
     if (!selectedVendor) {
       setResult({ type: 'error', text: 'Please select a vendor from the list.' });
@@ -339,7 +355,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
         programCategory: submission.program_category || '',
         amount: submission.service_amount || 0,
         memo,
-        tfaNotes: submission.notes || (submission.form_data?.notes as string) || '',
+        tfaNotes: memo,
         clientTypeId: selectedClientTypeId || undefined,
         clientCategoryId: clientTypeToCategory(selectedClientTypeId) || undefined,
         financialAssistanceTypeId: selectedFATypeId || undefined,
@@ -369,19 +385,24 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
     }
   };
 
-  const formatAmount = (val?: number) =>
-    val !== undefined && val !== null ? `$${val.toFixed(2)}` : '$0.00';
+  // Helper: is file an image?
+  const isImage = (fileName: string) => /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(fileName);
+
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal po-modal" onClick={e => e.stopPropagation()}>
+
+        {/* ─── Header ─── */}
         <div className="po-header">
           <h2 style={{ margin: 0 }}>Create Purchase Order</h2>
           <p style={{ margin: '4px 0 0', color: '#666', fontSize: '0.9rem' }}>
-            This will send a PO to NetSuite for processing
+            Review details, then send to NetSuite
           </p>
         </div>
 
+        {/* ─── Result Banner ─── */}
         {result && (
           <div className={`po-result-panel ${result.type}`}>
             <div className="po-result-header">
@@ -390,16 +411,10 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
             </div>
             {result.payload && (
               <div className="po-result-details">
-                <button
-                  type="button"
-                  className="po-payload-toggle"
-                  onClick={() => setShowPayload(!showPayload)}
-                >
+                <button type="button" className="po-payload-toggle" onClick={() => setShowPayload(!showPayload)}>
                   {showPayload ? '▾ Hide' : '▸ Show'} PO Payload
                 </button>
-                {showPayload && (
-                  <pre className="po-payload-json">{JSON.stringify(result.payload, null, 2)}</pre>
-                )}
+                {showPayload && <pre className="po-payload-json">{JSON.stringify(result.payload, null, 2)}</pre>}
               </div>
             )}
             {result.response && (
@@ -411,36 +426,62 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
           </div>
         )}
 
-        {/* Vendor Autocomplete */}
+        {/* ─── Summary + Amount ─── */}
+        <div className="po-summary-strip">
+          <div className="po-summary-row">
+            <span className="po-summary-label">Client</span>
+            <span className="po-summary-value">{submission.client_name || '—'}</span>
+            <span className="po-summary-meta">ID: {submission.client_id || '—'}</span>
+          </div>
+          <div className="po-summary-row">
+            <span className="po-summary-label">Program</span>
+            <span className="po-summary-value">{submission.region || '—'} · {submission.program_category || '—'}</span>
+          </div>
+          <div className="po-summary-row">
+            <span className="po-summary-label">Type</span>
+            <span className="po-summary-value">{assistanceType}</span>
+          </div>
+        </div>
+        <div className="po-amount-display">
+          <span className="po-amount-symbol">$</span>
+          <span className="po-amount-value">{(submission.service_amount || 0).toFixed(2)}</span>
+        </div>
+
+        {/* ─── Vendor ─── */}
         <div className="po-section">
-          <h3 className="po-section-title">Vendor</h3>
+          <h3 className="po-section-title">Vendor {!selectedVendor && <span className="po-required-dot">●</span>}</h3>
           <div className="vendor-autocomplete" ref={dropdownRef}>
-            <input
-              ref={inputRef}
-              type="text"
-              className="vendor-search-input"
-              value={vendorSearch}
-              onChange={e => {
-                setVendorSearch(e.target.value);
-                setSelectedVendor(null);
-                setShowDropdown(true);
-                setHighlightIndex(-1);
-              }}
-              onFocus={() => vendorSearch.length >= 1 && setShowDropdown(true)}
-              onKeyDown={handleVendorKeyDown}
-              placeholder={vendorsLoading ? 'Loading vendors...' : 'Type to search vendors...'}
-              disabled={vendorsLoading}
-              autoComplete="off"
-            />
-            {selectedVendor && (
-              <div className="vendor-selected-badge">
-                <span>ID: {selectedVendor.id}</span>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedVendor(null); setVendorSearch(''); inputRef.current?.focus(); }}
-                  aria-label="Clear vendor selection"
-                >×</button>
+            {selectedVendor ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '8px 12px', backgroundColor: '#e8f5e9',
+                borderRadius: '6px', border: '1px solid #a5d6a7',
+              }}>
+                <span style={{ flex: 1, fontWeight: 500 }}>
+                  {selectedVendor.companyName}
+                  <span style={{ color: '#666', fontSize: '0.85em', marginLeft: '8px' }}>NS #{selectedVendor.entityId}</span>
+                </span>
+                <button type="button" onClick={() => { setSelectedVendor(null); setVendorSearch(''); inputRef.current?.focus(); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1em', color: '#666' }}>✕</button>
               </div>
+            ) : (
+              <input
+                ref={inputRef}
+                type="text"
+                className={`vendor-search-input${!selectedVendor ? ' po-field-required' : ''}`}
+                value={vendorSearch}
+                onChange={e => {
+                  setVendorSearch(e.target.value);
+                  setSelectedVendor(null);
+                  setShowDropdown(true);
+                  setHighlightIndex(-1);
+                }}
+                onFocus={() => vendorSearch.length >= 1 && setShowDropdown(true)}
+                onKeyDown={handleVendorKeyDown}
+                placeholder={vendorsLoading ? 'Loading vendors...' : 'Type to search vendors...'}
+                disabled={vendorsLoading}
+                autoComplete="off"
+              />
             )}
             {showDropdown && !selectedVendor && filteredVendors.length > 0 && (
               <div className="vendor-dropdown">
@@ -468,304 +509,167 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
           </div>
         </div>
 
+        {/* ─── PO Memo (combined) ─── */}
         <div className="po-section">
-          <h3 className="po-section-title">Client</h3>
-          <div className="po-info-grid">
-            <div className="po-info-item">
-              <span className="po-info-label">Name</span>
-              <span className="po-info-value">{submission.client_name || '—'}</span>
-            </div>
-            <div className="po-info-item">
-              <span className="po-info-label">Client ID</span>
-              <span className="po-info-value">{submission.client_id || '—'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="po-section">
-          <h3 className="po-section-title">Program</h3>
-          <div className="po-info-grid">
-            <div className="po-info-item">
-              <span className="po-info-label">Region</span>
-              <span className="po-info-value">{submission.region || '—'}</span>
-            </div>
-            <div className="po-info-item">
-              <span className="po-info-label">Category</span>
-              <span className="po-info-value">{submission.program_category || '—'}</span>
-            </div>
-          </div>
-          <div className="po-form-grid">
-            <div className="form-group" style={{ margin: 0 }}>
-              <label>Client Type</label>
-              <select
-                value={selectedClientTypeId}
-                onChange={e => setSelectedClientTypeId(e.target.value)}
-                className="po-select"
-              >
-                <option value="">— Select —</option>
-                {CLIENT_TYPES.map(ct => (
-                  <option key={ct.id} value={ct.id}>{ct.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group" style={{ margin: 0 }}>
-              <label>Financial Assistance Type</label>
-              <select
-                value={selectedFATypeId}
-                onChange={e => setSelectedFATypeId(e.target.value)}
-                className="po-select"
-              >
-                <option value="">— Select —</option>
-                {FINANCIAL_ASSISTANCE_TYPES.map(fa => (
-                  <option key={fa.id} value={fa.id}>{fa.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="form-group" style={{ marginTop: '12px' }}>
-            <label>Assistance Month</label>
-            <select
-              value={selectedMonthId}
-              onChange={e => setSelectedMonthId(e.target.value)}
-              className="po-select"
-            >
-              <option value="">— Select —</option>
-              {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
-                <option key={i+1} value={String(i+1)}>{m}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Line Items */}
-        <div className="po-section">
-          <h3 className="po-section-title">Line Items</h3>
-          <div className="form-group" style={{ marginBottom: '12px' }}>
-            <label>NetSuite Item Category</label>
-            <select
-              value={selectedItemId}
-              onChange={e => {
-                setSelectedItemId(e.target.value);
-                setSelectedAccountId(guessAccountId(e.target.value));
-              }}
-              className="po-select"
-            >
-              {NETSUITE_ITEMS.map(it => (
-                <option key={it.id} value={it.id}>{it.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="po-form-grid" style={{ marginBottom: '12px' }}>
-            <div className="form-group" style={{ margin: 0 }}>
-              <label>Department</label>
-              <select
-                value={selectedDeptId}
-                onChange={e => setSelectedDeptId(e.target.value)}
-                className="po-select"
-              >
-                {NETSUITE_DEPARTMENTS.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group" style={{ margin: 0 }}>
-              <label>Sites</label>
-              <select
-                value={selectedSiteId}
-                onChange={e => setSelectedSiteId(e.target.value)}
-                className="po-select"
-              >
-                {NETSUITE_SITES.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {/* Account selector */}
-          <div className="form-group" style={{ marginTop: '12px' }}>
-            <label>Account (GL Expense Account)</label>
-            <select
-              value={selectedAccountId}
-              onChange={e => setSelectedAccountId(e.target.value)}
-              className="po-select"
-            >
-              <option value="">— Select account —</option>
-              {NETSUITE_ACCOUNTS.map(a => (
-                <option key={a.id} value={a.id}>{a.number} — {a.name}</option>
-              ))}
-            </select>
-          </div>
-          <table className="po-line-table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th style={{ textAlign: 'right' }}>Qty</th>
-                <th style={{ textAlign: 'right' }}>Rate</th>
-                <th style={{ textAlign: 'right' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lineItems.map((item, idx) => (
-                <tr key={idx}>
-                  <td>{item.description}</td>
-                  <td style={{ textAlign: 'right' }}>{item.quantity}</td>
-                  <td style={{ textAlign: 'right' }}>{formatAmount(item.rate)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatAmount(item.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={3} style={{ textAlign: 'right', fontWeight: 600 }}>Total</td>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: '#0066cc', fontSize: '1.1rem' }}>
-                  {formatAmount(submission.service_amount)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* TFA Notes (read-only, goes to PO header memo) */}
-        {(submission.notes || (submission.form_data?.notes as string)) && (
-          <div className="form-group" style={{ marginTop: '16px' }}>
-            <label>TFA Notes <span style={{ fontWeight: 'normal', fontSize: '0.8em', color: '#888' }}>(→ PO header memo)</span></label>
-            <input type="text" value={submission.notes || (submission.form_data?.notes as string) || ''} readOnly style={{ background: '#f5f5f5', color: '#555' }} />
-          </div>
-        )}
-
-        {/* Line Item Memo (editable, goes to each line item) */}
-        <div className="form-group" style={{ marginTop: '8px' }}>
-          <label>Line Item Memo <span style={{ fontWeight: 'normal', fontSize: '0.8em', color: '#888' }}>(→ item memo)</span></label>
+          <h3 className="po-section-title">Memo</h3>
           <input
             type="text"
             value={memo}
             onChange={e => setMemo(e.target.value)}
-            placeholder="Optional memo for line items"
+            placeholder="Enter memo for purchase order"
+            className="po-memo-input"
           />
         </div>
 
-        {/* Attachments indicator */}
+        {/* ─── Attachments ─── */}
         {submission.attachments && submission.attachments.length > 0 && (
-          <div style={{ margin: '12px 0 4px', padding: '8px 12px', background: '#e8f4fd', borderRadius: '6px', fontSize: '0.85rem', color: '#1a73e8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>📎</span>
-            <span>
-              {submission.attachments.length} attachment{submission.attachments.length !== 1 ? 's' : ''} will be uploaded to NetSuite:
-            </span>
-            <span style={{ color: '#555', fontWeight: 400 }}>
-              {submission.attachments.map(a => a.fileName).join(', ')}
-            </span>
+          <div className="po-section">
+            <h3 className="po-section-title">
+              Attachments ({submission.attachments.length})
+            </h3>
+            <div className="po-attachment-grid">
+              {submission.attachments.map((a, idx) => (
+                <div key={idx} className="po-attachment-item">
+                  {isImage(a.fileName) ? (
+                    <div className="po-attachment-thumb">
+                      <span className="po-attachment-icon">🖼</span>
+                    </div>
+                  ) : (
+                    <div className="po-attachment-thumb po-attachment-file">
+                      <span className="po-attachment-icon">📄</span>
+                    </div>
+                  )}
+                  <span className="po-attachment-name" title={a.fileName}>
+                    {a.fileName}
+                  </span>
+                  <span className="po-attachment-size">
+                    {a.size < 1024 ? `${a.size} B` : a.size < 1048576 ? `${(a.size / 1024).toFixed(0)} KB` : `${(a.size / 1048576).toFixed(1)} MB`}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="po-attachment-note">These files will be uploaded to the NetSuite PO</p>
           </div>
         )}
 
-        {/* Send-back panel */}
+        {/* ─── NetSuite Mappings (collapsible accordion) ─── */}
+        <div className="po-section po-accordion">
+          <button
+            type="button"
+            className="po-accordion-toggle"
+            onClick={() => setShowMappings(!showMappings)}
+          >
+            <span className="po-accordion-arrow">{showMappings ? '▾' : '▸'}</span>
+            <span className="po-accordion-label">NetSuite Mappings</span>
+            {!showMappings && (
+              <span className="po-accordion-summary">{mappingSummary}</span>
+            )}
+          </button>
+
+          {showMappings && (
+            <div className="po-accordion-body">
+              {/* Client Type & Financial Assistance Type */}
+              <div className="po-form-grid">
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Client Type</label>
+                  <select value={selectedClientTypeId} onChange={e => setSelectedClientTypeId(e.target.value)} className="po-select">
+                    <option value="">— Select —</option>
+                    {CLIENT_TYPES.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Financial Assistance Type</label>
+                  <select value={selectedFATypeId} onChange={e => setSelectedFATypeId(e.target.value)} className="po-select">
+                    <option value="">— Select —</option>
+                    {FINANCIAL_ASSISTANCE_TYPES.map(fa => <option key={fa.id} value={fa.id}>{fa.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Assistance Month */}
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Assistance Month</label>
+                <select value={selectedMonthId} onChange={e => setSelectedMonthId(e.target.value)} className="po-select">
+                  <option value="">— Select —</option>
+                  {MONTH_NAMES.map((m, i) => <option key={i+1} value={String(i+1)}>{m}</option>)}
+                </select>
+              </div>
+
+              {/* Item Category */}
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Item Category</label>
+                <select
+                  value={selectedItemId}
+                  onChange={e => { setSelectedItemId(e.target.value); setSelectedAccountId(guessAccountId(e.target.value)); }}
+                  className="po-select"
+                >
+                  {NETSUITE_ITEMS.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
+                </select>
+              </div>
+
+              {/* Department & Site */}
+              <div className="po-form-grid" style={{ marginTop: '12px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Department</label>
+                  <select value={selectedDeptId} onChange={e => setSelectedDeptId(e.target.value)} className="po-select">
+                    {NETSUITE_DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Site</label>
+                  <select value={selectedSiteId} onChange={e => setSelectedSiteId(e.target.value)} className="po-select">
+                    {NETSUITE_SITES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* GL Account */}
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>GL Account</label>
+                <select value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="po-select">
+                  <option value="">— Select account —</option>
+                  {NETSUITE_ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.number} — {a.name}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── Send Back Panel ─── */}
         {sendBackMode && !result && (
-          <div style={{
-            margin: '16px 0 0',
-            padding: '14px',
-            backgroundColor: '#fff7ed',
-            border: '1px solid #fed7aa',
-            borderRadius: '8px',
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '8px',
-            }}>
-              <label style={{ fontWeight: 600, fontSize: '0.9em', color: '#9a3412' }}>
-                What needs to be corrected?
-              </label>
-              <button
-                type="button"
-                onClick={() => setSendBackMode(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '1.1em',
-                  color: '#9a3412',
-                  padding: '2px 6px',
-                }}
-                aria-label="Cancel send back"
-              >
-                ×
-              </button>
+          <div className="po-sendback-panel">
+            <div className="po-sendback-header">
+              <label className="po-sendback-label">What needs to be corrected?</label>
+              <button type="button" onClick={() => setSendBackMode(false)} className="po-sendback-close" aria-label="Cancel send back">×</button>
             </div>
             <textarea
               value={sendBackMessage}
               onChange={e => setSendBackMessage(e.target.value)}
               placeholder="Describe the issue — e.g. wrong amount, missing client ID, vendor doesn't match..."
               rows={3}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                fontSize: '0.85em',
-                border: '1px solid #fed7aa',
-                borderRadius: '6px',
-                resize: 'vertical',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
+              className="po-sendback-textarea"
               autoFocus
             />
             <button
               type="button"
               onClick={handleSendBack}
               disabled={sendingBack || !sendBackMessage.trim()}
-              style={{
-                marginTop: '8px',
-                padding: '8px 16px',
-                fontSize: '0.85em',
-                fontWeight: 600,
-                backgroundColor: sendingBack || !sendBackMessage.trim() ? '#d1d5db' : '#ea580c',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: sendingBack || !sendBackMessage.trim() ? 'not-allowed' : 'pointer',
-              }}
+              className="po-sendback-btn"
             >
               {sendingBack ? 'Sending…' : 'Send Back for Corrections'}
             </button>
           </div>
         )}
 
-        {/* Actions */}
+        {/* ─── Actions ─── */}
         <div className="modal-actions">
           {result?.type === 'success' ? (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={onClose}
-              style={{ minWidth: '140px' }}
-            >
-              Done
-            </button>
+            <button type="button" className="btn btn-primary" onClick={onClose} style={{ minWidth: '140px' }}>Done</button>
           ) : (
             <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-                disabled={sending || sendingBack}
-              >
-                Cancel
-              </button>
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={sending || sendingBack}>Cancel</button>
               {!sendBackMode && (
-                <button
-                  type="button"
-                  onClick={() => setSendBackMode(true)}
-                  disabled={sending}
-                  style={{
-                    padding: '8px 14px',
-                    fontSize: '0.85em',
-                    fontWeight: 600,
-                    backgroundColor: '#fff7ed',
-                    color: '#ea580c',
-                    border: '1px solid #fed7aa',
-                    borderRadius: '6px',
-                    cursor: sending ? 'not-allowed' : 'pointer',
-                  }}
-                >
+                <button type="button" onClick={() => setSendBackMode(true)} disabled={sending} className="po-sendback-toggle-btn">
                   ↩ Send Back
                 </button>
               )}
@@ -773,7 +677,8 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
                 type="button"
                 className="btn btn-primary"
                 onClick={handleSubmit}
-                disabled={sending || sendBackMode}
+                disabled={sending || sendBackMode || !isValid}
+                title={!isValid ? 'Select a vendor first' : ''}
                 style={{ minWidth: '180px' }}
               >
                 {sending ? 'Sending to NetSuite...' : 'Create Purchase Order'}

@@ -1,8 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getMessagesContainer } from '../shared/cosmosClient';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { Message } from '../shared/types';
+import { validateAuthWithRole } from '../shared/rbac';
 
 const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
@@ -44,21 +44,13 @@ async function MarkMessageRead(
     return { status: 204, headers: corsHeaders };
   }
 
-  // Auth
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Auth via centralized RBAC
+  const auth = await validateAuthWithRole(request, context);
+  if (!auth.valid || !auth.email) {
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
-  const token = authHeader.substring(7);
-  if (!isJwtToken(token)) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
-  const validation = await validateEntraIdToken(token);
-  if (!validation.valid || !validation.email) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
 
-  const rateLimitCheck = await checkRateLimitDistributed(validation.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
@@ -89,8 +81,8 @@ async function MarkMessageRead(
 
     // Add current user to readBy if not already present
     const readBy = existing.readBy || [];
-    if (!readBy.includes(validation.email!)) {
-      readBy.push(validation.email!);
+    if (!readBy.includes(auth.email!)) {
+      readBy.push(auth.email!);
       const updated = { ...existing, readBy };
       await container.item(msgId, body.submissionId).replace(updated);
     }
@@ -122,21 +114,13 @@ async function MarkThreadRead(
     return { status: 204, headers: corsHeaders };
   }
 
-  // Auth
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Auth via centralized RBAC
+  const auth = await validateAuthWithRole(request, context);
+  if (!auth.valid || !auth.email) {
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
-  const token = authHeader.substring(7);
-  if (!isJwtToken(token)) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
-  const validation = await validateEntraIdToken(token);
-  if (!validation.valid || !validation.email) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
 
-  const rateLimitCheck = await checkRateLimitDistributed(validation.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
@@ -154,7 +138,7 @@ async function MarkThreadRead(
 
   try {
     const container = await getMessagesContainer();
-    const userEmail = validation.email!;
+    const userEmail = auth.email!;
 
     // Find all messages in the thread not yet read by this user
     const { resources: unreadMessages } = await container.items.query<Message>({

@@ -12,5 +12,6 @@ import '../Messages/index';
 import '../MessagesRead/index';
 import '../UnreadCount/index';
 import '../SignalR/index';
+import '../Clients/index';
 
 // The functions are registered via app.http() calls in their respective modules

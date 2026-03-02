@@ -2,9 +2,11 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { saveCapture, ServiceCapture } from '../shared/cosmosClient';
 import { CapturePayload } from '../shared/types';
 import { validateToken } from '../AuthToken';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
+import { isJwtToken } from '../shared/entraIdAuth';
 import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
+import { sendNotifyEmail, buildNewSubmissionEmail } from '../shared/graphClient';
+import { validateAuthWithRole } from '../shared/rbac';
 
 const MAX_PAYLOAD_SIZE = 1024 * 1024; // 1MB limit
 
@@ -57,9 +59,9 @@ export async function CaptureIngest(
   
   // Determine token type and validate accordingly
   if (isJwtToken(token)) {
-    // Entra ID JWT token
-    const entraValidation = await validateEntraIdToken(token);
-    if (!entraValidation.valid || !entraValidation.userId) {
+    // Use centralized RBAC auth for Entra ID tokens
+    const rbacAuth = await validateAuthWithRole(request, context);
+    if (!rbacAuth.valid) {
       logAuditEvent(context, { ...baseAudit, event: 'AUTH_FAILURE', success: false, details: { method: 'entra_id', reason: 'invalid_or_expired' } });
       return {
         status: 401,
@@ -67,9 +69,9 @@ export async function CaptureIngest(
         headers: corsHeaders,
       };
     }
-    userId = entraValidation.email || entraValidation.userId;
-    userEmail = entraValidation.email;
-    logAuditEvent(context, { ...baseAudit, event: 'AUTH_SUCCESS', userId, email: userEmail, success: true, details: { method: 'entra_id' } });
+    userId = rbacAuth.email || rbacAuth.userId;
+    userEmail = rbacAuth.email;
+    logAuditEvent(context, { ...baseAudit, event: 'AUTH_SUCCESS', userId, email: userEmail, success: true, details: { method: 'entra_id', role: rbacAuth.role } });
   } else {
     // Legacy token (for backwards compatibility)
     const tokenValidation = validateToken(token);
@@ -183,6 +185,21 @@ export async function CaptureIngest(
 
     // Save to Cosmos DB
     const docId = await saveCapture(capture);
+
+    // Send email notification to accounting/SSVF team
+    try {
+      const { subject, html } = buildNewSubmissionEmail({
+        submitterEmail: userEmail || userId,
+        clientName: extractedFields.client_name,
+        serviceType: capture.service_type,
+        region: extractedFields.region,
+        amount: extractedFields.service_amount,
+        capturedAt: capture.captured_at_utc,
+      });
+      await sendNotifyEmail(subject, html);
+    } catch (emailErr) {
+      context.warn('[CaptureIngest] Email notification failed (non-blocking):', emailErr);
+    }
 
     const duration = Date.now() - requestStart;
     context.log(`✅ SUCCESS (${duration}ms) - User: ${userId}, Fields: ${fieldCount}, DocId: ${docId}`);

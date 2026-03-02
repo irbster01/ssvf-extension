@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { testConnection, createPurchaseOrder, POInput, getVendors, getAccounts, uploadAndAttachFiles } from '../shared/netsuiteClient';
 import { downloadAttachment } from '../shared/blobStorage';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
+import { validateAuthWithRole, isElevated } from '../shared/rbac';
 
 const ALLOWED_ORIGINS = [
   'https://wonderful-sand-00129870f.1.azurestaticapps.net',
@@ -19,16 +19,8 @@ function getCorsHeaders(origin: string) {
   };
 }
 
-async function validateAuth(request: HttpRequest, context: InvocationContext): Promise<{ valid: boolean; userId?: string }> {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    context.warn('[NetSuite] Missing authorization header');
-    return { valid: false };
-  }
-  const token = authHeader.substring(7);
-  if (!isJwtToken(token)) return { valid: false };
-  const validation = await validateEntraIdToken(token);
-  return { valid: validation.valid, userId: validation.userId };
+async function validateAuth(request: HttpRequest, context: InvocationContext) {
+  return validateAuthWithRole(request, context);
 }
 
 // ============ VENDOR LIST ENDPOINT ============
@@ -153,6 +145,11 @@ app.http('NetSuitePO', {
     const auth = await validateAuth(request, context);
     if (!auth.valid) {
       return { status: 401, headers: cors, jsonBody: { error: 'Unauthorized' } };
+    }
+
+    // RBAC: Only elevated users (admin/accounting) can create purchase orders
+    if (!isElevated(auth.role)) {
+      return { status: 403, headers: cors, jsonBody: { error: 'Only accounting staff can create purchase orders' } };
     }
 
     let body: any;

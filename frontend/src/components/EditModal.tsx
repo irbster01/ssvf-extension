@@ -1,16 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
-import { Submission, SubmissionStatus, AttachmentMeta } from '../types';
-import { NetSuiteVendor } from '../api/submissions';
+import { Submission, SubmissionStatus, AttachmentMeta, UserRole, isElevatedRole } from '../types';
+import { NetSuiteVendor, ClientRecord } from '../api/submissions';
+import ClientAutocomplete from './ClientAutocomplete';
 
 interface EditModalProps {
   submission: Submission;
   vendors: NetSuiteVendor[];
   vendorsLoading: boolean;
+  clients: ClientRecord[];
+  clientsLoading: boolean;
   currentUsername?: string;
+  userRole: UserRole;
   onSave: (updates: Partial<Submission>) => Promise<void>;
   onClose: () => void;
   onUploadFile: (file: File) => Promise<AttachmentMeta>;
   onDownloadFile: (blobName: string) => Promise<void>;
+  onClientAdded?: (client: ClientRecord) => void;
 }
 
 const STATUS_OPTIONS: SubmissionStatus[] = ['New', 'Corrections', 'In Review', 'Submitted'];
@@ -23,7 +28,8 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSave, onClose, onUploadFile, onDownloadFile }: EditModalProps) {
+function EditModal({ submission, vendors, vendorsLoading, clients, clientsLoading, currentUsername, userRole, onSave, onClose, onUploadFile, onDownloadFile, onClientAdded }: EditModalProps) {
+  const elevated = isElevatedRole(userRole);
   const [clientId, setClientId] = useState(submission.client_id || '');
   const [clientName, setClientName] = useState(submission.client_name || '');
   const [serviceAmount, setServiceAmount] = useState(submission.service_amount?.toString() || '');
@@ -36,6 +42,7 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentMeta[]>(submission.attachments || []);
   const [enteredInSystem, setEnteredInSystem] = useState(submission.entered_in_system || false);
+  const [clientSeedProgram, setClientSeedProgram] = useState<string | null>(null);
 
   // Vendor autocomplete state
   const [vendorSearch, setVendorSearch] = useState(submission.vendor || '');
@@ -93,9 +100,17 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Warn if program doesn't match seed data
+    if (clientSeedProgram && programCategory !== clientSeedProgram) {
+      const ok = window.confirm(
+        `The selected program "${programCategory || '(none)'}" doesn't match the client's program on file ("${clientSeedProgram}"). Continue anyway?`
+      );
+      if (!ok) return;
+    }
+
     setSaving(true);
     try {
-      await onSave({
+      const updates: Partial<Submission> = {
         client_id: clientId || undefined,
         client_name: clientName || undefined,
         vendor: selectedVendor?.companyName || vendorSearch || undefined,
@@ -103,13 +118,28 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
         service_amount: serviceAmount ? parseFloat(serviceAmount) : undefined,
         region: (region as any) || undefined,
         program_category: (programCategory as any) || undefined,
-        status,
         notes: notes || undefined,
         tfa_date: tfaDate || undefined,
-        entered_in_system: enteredInSystem,
-        entered_in_system_by: enteredInSystem ? (submission.entered_in_system_by || currentUsername || undefined) : undefined,
-        entered_in_system_at: enteredInSystem ? (submission.entered_in_system_at || new Date().toISOString()) : undefined,
-      });
+      };
+      // Only include elevated-only fields when user has permission
+      if (elevated) {
+        updates.status = status;
+        updates.entered_in_system = enteredInSystem;
+        updates.entered_in_system_by = enteredInSystem ? (submission.entered_in_system_by || currentUsername || undefined) : undefined;
+        updates.entered_in_system_at = enteredInSystem ? (submission.entered_in_system_at || new Date().toISOString()) : undefined;
+      }
+      await onSave(updates);
+
+      // If client is not in the autocomplete list, persist as new client
+      if (clientId && clientName && !clients.find(c => c.id === clientId)) {
+        onClientAdded?.({ id: clientId, clientName, region, program: programCategory });
+      } else if (clientId && region) {
+        // Save region back to client record if it was missing
+        const existing = clients.find(c => c.id === clientId);
+        if (existing && !existing.region) {
+          onClientAdded?.({ ...existing, region, program: programCategory || existing.program });
+        }
+      }
     } finally {
       setSaving(false);
     }
@@ -137,7 +167,8 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h2>Edit Submission</h2>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="receipt-edit-form">
+          {elevated && (
           <div className="form-group">
             <label>Status</label>
             <select value={status} onChange={e => setStatus(e.target.value as SubmissionStatus)}>
@@ -146,47 +177,19 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
               ))}
             </select>
           </div>
+          )}
 
+          {/* Row 1: Date */}
           <div className="form-group">
-            <label>Client ID</label>
+            <label>TFA Date</label>
             <input
-              type="text"
-              value={clientId}
-              onChange={e => setClientId(e.target.value)}
-              placeholder="Wellsky Client ID"
+              type="date"
+              value={tfaDate}
+              onChange={e => setTfaDate(e.target.value)}
             />
           </div>
 
-          <div className="form-group">
-            <label>Client Name</label>
-            <input
-              type="text"
-              value={clientName}
-              onChange={e => setClientName(e.target.value)}
-              placeholder="Client display name"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Region</label>
-            <select value={region} onChange={e => setRegion(e.target.value)}>
-              <option value="">— Select —</option>
-              {REGION_OPTIONS.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Program Category</label>
-            <select value={programCategory} onChange={e => setProgramCategory(e.target.value)}>
-              <option value="">— Select —</option>
-              {PROGRAM_OPTIONS.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
-
+          {/* Row 2: Vendor */}
           <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
             <label>Vendor</label>
             {selectedVendor ? (
@@ -195,7 +198,10 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
                 padding: '8px 12px', backgroundColor: '#e8f5e9',
                 borderRadius: '6px', border: '1px solid #a5d6a7',
               }}>
-                <span style={{ flex: 1, fontWeight: 500 }}>{selectedVendor.companyName}</span>
+                <span style={{ flex: 1, fontWeight: 500 }}>
+                  {selectedVendor.companyName}
+                  <span style={{ color: '#666', fontSize: '0.85em', marginLeft: '8px' }}>NS #{selectedVendor.entityId}</span>
+                </span>
                 <button type="button" onClick={() => { setSelectedVendor(null); setVendorSearch(''); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1em', color: '#666' }}>✕</button>
               </div>
@@ -235,26 +241,75 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
             )}
           </div>
 
-          <div className="form-group">
-            <label>Service Amount</label>
-            <input
-              type="number"
-              step="0.01"
-              value={serviceAmount}
-              onChange={e => setServiceAmount(e.target.value)}
-              placeholder="0.00"
-            />
+          {/* Row 3: Client | Region | Program */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="form-group" style={{ flex: 2 }}>
+              <ClientAutocomplete
+                clients={clients}
+                clientsLoading={clientsLoading}
+                clientName={clientName}
+                clientId={clientId}
+                onChange={(name, id, rec) => {
+                  setClientName(name);
+                  setClientId(id);
+                  if (rec) {
+                    if (rec.program) { setProgramCategory(rec.program); setClientSeedProgram(rec.program); }
+                    if (rec.region) { setRegion(rec.region); }
+                  } else {
+                    setClientSeedProgram(null);
+                  }
+                }}
+              />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Region</label>
+              <select value={region} onChange={e => setRegion(e.target.value)}>
+                <option value="">— Select —</option>
+                {REGION_OPTIONS.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Program</label>
+              <select value={programCategory} onChange={e => setProgramCategory(e.target.value)}>
+                <option value="">— Select —</option>
+                {PROGRAM_OPTIONS.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="form-group">
-            <label>TFA Date</label>
-            <input
-              type="date"
-              value={tfaDate}
-              onChange={e => setTfaDate(e.target.value)}
-            />
+          {/* Row 4: Notes | Amount */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Notes</label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Optional notes"
+                rows={2}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+            <div className="form-group receipt-amount-group" style={{ flex: 1 }}>
+              <label>Amount</label>
+              <div className="receipt-amount-wrapper">
+                <span className="receipt-amount-symbol">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={serviceAmount}
+                  onChange={e => setServiceAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="receipt-amount-input"
+                />
+              </div>
+            </div>
           </div>
 
+          {elevated && (
           <div className="form-group">
             <label>Entered in System</label>
             <div
@@ -291,18 +346,9 @@ function EditModal({ submission, vendors, vendorsLoading, currentUsername, onSav
               )}
             </div>
           </div>
+          )}
 
-          <div className="form-group">
-            <label>Notes</label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Optional notes"
-              rows={3}
-              style={{ resize: 'vertical' }}
-            />
-          </div>
-
+          {/* Attachments */}
           <div className="form-group">
             <label>Attachments</label>
             {attachments.length > 0 && (

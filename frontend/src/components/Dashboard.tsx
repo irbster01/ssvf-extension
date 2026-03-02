@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import { Capacitor } from '@capacitor/core';
-import { Submission, SubmissionStatus } from '../types';
-import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor, fetchUnreadCount, sendMessage } from '../api/submissions';
+import { Submission, SubmissionStatus, UserRole, isElevatedRole } from '../types';
+import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor, fetchUnreadCount, sendMessage, fetchClients, addClient, ClientRecord } from '../api/submissions';
 import { nativeAuth } from '../auth/nativeAuth';
 import { useSignalR } from '../hooks/useSignalR';
 import EditModal from './EditModal';
@@ -44,6 +44,8 @@ function Dashboard() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
+  const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -51,6 +53,7 @@ function Dashboard() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [userRole, setUserRole] = useState<UserRole>('user');
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -140,7 +143,8 @@ function Dashboard() {
       setLoading(true);
       setError(null);
       const token = await getToken();
-      const data = await fetchSubmissions(token);
+      const { submissions: data, role } = await fetchSubmissions(token);
+      setUserRole(role);
       // Default status to 'New' if not set
       const withStatus = data.map(s => ({
         ...s,
@@ -174,6 +178,41 @@ function Dashboard() {
         setVendorsLoading(false);
       }
     })();
+  }, [getToken]);
+
+  // Fetch client seed list once on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        setClientsLoading(true);
+        const token = await getToken();
+        const c = await fetchClients(token);
+        setClients(c);
+      } catch {
+        console.warn('Could not load client seed');
+      } finally {
+        setClientsLoading(false);
+      }
+    })();
+  }, [getToken]);
+
+  // Persist a new/updated client to Cosmos and update local state
+  const handleClientAdded = useCallback(async (client: ClientRecord) => {
+    setClients(prev => {
+      const idx = prev.findIndex(c => c.id === client.id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], ...client };
+        return updated;
+      }
+      return [...prev, client];
+    });
+    try {
+      const token = await getToken();
+      await addClient(token, client.id, client.clientName, client.program, client.region);
+    } catch {
+      console.warn('Could not persist client');
+    }
   }, [getToken]);
 
   // Fetch unread message counts
@@ -261,6 +300,7 @@ function Dashboard() {
         updated_at: new Date().toISOString(),
       });
       setSubmissions(prev => prev.map(s => s.id === correctionSubmission.id ? { ...s, ...updated, ...updates } : s));
+      setCorrectionSubmission(null);
       addToast('success', 'Corrections submitted');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save corrections');
@@ -538,7 +578,7 @@ function Dashboard() {
     <>
       {error && <div className="error">{error}</div>}
 
-      <SubmitTFA getToken={getToken} onSubmitted={loadSubmissions} vendors={vendors} vendorsLoading={vendorsLoading} />
+      <SubmitTFA getToken={getToken} onSubmitted={loadSubmissions} vendors={vendors} vendorsLoading={vendorsLoading} clients={clients} clientsLoading={clientsLoading} onClientAdded={handleClientAdded} />
 
       <div className="table-container">
         <div className="toolbar">
@@ -622,17 +662,21 @@ function Dashboard() {
           </div>
           <div className="toolbar-actions">
             <span className="export-count">{filteredSubmissions.length} record{filteredSubmissions.length !== 1 ? 's' : ''}</span>
-            <button
-              className="btn btn-secondary"
-              onClick={exportCSV}
-              disabled={filteredSubmissions.length === 0}
-              title={filteredSubmissions.length === 0 ? 'No records to export' : `Export ${filteredSubmissions.length} filtered records to CSV`}
-            >
-              Export CSV
-            </button>
-            <button className="btn btn-secondary" onClick={() => setShowAnalytics(true)} aria-label="View analytics">
-              Analytics
-            </button>
+            {isElevatedRole(userRole) && (
+              <button
+                className="btn btn-secondary"
+                onClick={exportCSV}
+                disabled={filteredSubmissions.length === 0}
+                title={filteredSubmissions.length === 0 ? 'No records to export' : `Export ${filteredSubmissions.length} filtered records to CSV`}
+              >
+                Export CSV
+              </button>
+            )}
+            {isElevatedRole(userRole) && (
+              <button className="btn btn-secondary" onClick={() => setShowAnalytics(true)} aria-label="View analytics">
+                Analytics
+              </button>
+            )}
             {lastRefreshed && (
               <span className="last-refreshed" title={lastRefreshed.toLocaleString()}>
                 {lastRefreshed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
@@ -675,6 +719,7 @@ function Dashboard() {
                   submission={submission}
                   statusOptions={STATUS_OPTIONS}
                   unreadCount={unreadCounts[submission.id] || 0}
+                  userRole={userRole}
                   onStatusChange={handleStatusChange}
                   onEdit={setEditingSubmission}
                   onCreatePO={setPoSubmission}
@@ -701,6 +746,7 @@ function Dashboard() {
                 submission={submission}
                 statusOptions={STATUS_OPTIONS}
                 unreadCount={unreadCounts[submission.id] || 0}
+                userRole={userRole}
                 onStatusChange={handleStatusChange}
                 onEdit={setEditingSubmission}
                 onCreatePO={setPoSubmission}
@@ -720,11 +766,15 @@ function Dashboard() {
           submission={editingSubmission}
           vendors={vendors}
           vendorsLoading={vendorsLoading}
+          clients={clients}
+          clientsLoading={clientsLoading}
           currentUsername={currentUsername}
+          userRole={userRole}
           onSave={handleSaveEdit}
           onClose={() => setEditingSubmission(null)}
           onUploadFile={handleUploadFile}
           onDownloadFile={handleDownloadFile}
+          onClientAdded={handleClientAdded}
         />
       )}
 
@@ -733,6 +783,8 @@ function Dashboard() {
           submission={correctionSubmission}
           vendors={vendors}
           vendorsLoading={vendorsLoading}
+          clients={clients}
+          clientsLoading={clientsLoading}
           currentUserEmail={currentUsername}
           getToken={getToken}
           onSave={handleSaveCorrection}
@@ -740,17 +792,17 @@ function Dashboard() {
           onUploadFile={handleCorrectionUploadFile}
           onDownloadFile={handleDownloadFile}
           onUnreadChange={handleUnreadChange}
+          onClientAdded={handleClientAdded}
         />
       )}
 
       {messageSubmission && (
         <MessageModal
-          submissionId={messageSubmission.id}
-          serviceType={messageSubmission.service_type}
-          clientName={messageSubmission.client_name}
+          submission={messageSubmission}
           currentUserEmail={currentUsername}
           getToken={getToken}
           onClose={() => setMessageSubmission(null)}
+          onDownloadFile={handleDownloadFile}
           onUnreadChange={handleUnreadChange}
         />
       )}

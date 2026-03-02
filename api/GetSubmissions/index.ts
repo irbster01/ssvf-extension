@@ -1,7 +1,9 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { queryCaptures, updateCapture, ServiceCapture } from '../shared/cosmosClient';
+import { queryCaptures, updateCapture, getContainer, ServiceCapture } from '../shared/cosmosClient';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
+import { sendEmail, sendNotifyEmail, buildCorrectionNeededEmail, buildCorrectionCompletedEmail, NOTIFY_MAILBOX } from '../shared/graphClient';
+import { validateAuthWithRole, isElevated, AuthResult } from '../shared/rbac';
 
 // Allowed origins for the accounting dashboard
 const ALLOWED_ORIGINS = [
@@ -29,27 +31,8 @@ function getCorsHeaders(origin: string) {
   };
 }
 
-async function validateAuth(request: HttpRequest, context: InvocationContext): Promise<{ valid: boolean; userId?: string; email?: string }> {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    context.warn('Missing or invalid authorization header');
-    return { valid: false };
-  }
-
-  const token = authHeader.substring(7);
-
-  if (!isJwtToken(token)) {
-    context.warn('Non-JWT token rejected');
-    return { valid: false };
-  }
-
-  const validation = await validateEntraIdToken(token);
-  if (!validation.valid || !validation.userId) {
-    context.warn('Invalid or expired Entra ID token');
-    return { valid: false };
-  }
-
-  return { valid: true, userId: validation.userId, email: validation.email };
+async function validateAuth(request: HttpRequest, context: InvocationContext): Promise<AuthResult> {
+  return validateAuthWithRole(request, context);
 }
 
 export async function GetSubmissions(
@@ -94,9 +77,17 @@ export async function GetSubmissions(
       const startDate = request.query.get('startDate') || undefined;
       const endDate = request.query.get('endDate') || undefined;
       const serviceType = request.query.get('serviceType') || undefined;
-      // When myOnly=true, filter to only this user's submissions using the auth token email
-      const myOnly = request.query.get('myOnly') === 'true';
-      const userId = myOnly ? (auth.email || auth.userId) : (request.query.get('userId') || undefined);
+
+      // RBAC: regular users always see only their own submissions
+      let userId: string | undefined;
+      if (isElevated(auth.role)) {
+        // Elevated users can optionally filter to their own via ?myOnly=true
+        const myOnly = request.query.get('myOnly') === 'true';
+        userId = myOnly ? (auth.email || auth.userId) : (request.query.get('userId') || undefined);
+      } else {
+        // Regular users are ALWAYS scoped to their own submissions
+        userId = auth.email || auth.userId;
+      }
       
       const submissions = await queryCaptures({ startDate, endDate, serviceType, userId });
       
@@ -104,7 +95,7 @@ export async function GetSubmissions(
       
       return {
         status: 200,
-        jsonBody: submissions,
+        jsonBody: { submissions, role: auth.role },
         headers: corsHeaders,
       };
     }
@@ -160,11 +151,11 @@ export async function UpdateSubmission(
     };
   }
 
-  context.log(`✅ Authenticated: ${auth.email || auth.userId}`);
+  context.log(`✅ UpdateSubmission Authenticated: ${auth.email || auth.userId} (role=${auth.role})`);
+
+  const id = request.params.id;
 
   try {
-    // Get ID from route parameter
-    const id = request.params.id;
     if (!id) {
       return {
         status: 400,
@@ -183,13 +174,42 @@ export async function UpdateSubmission(
       };
     }
 
+    // Read the existing document BEFORE updating so we can detect status transitions + ownership
+    const cont = await getContainer();
+    const { resource: existingDoc } = await cont.item(id, body.service_type).read<ServiceCapture>();
+    const previousStatus = existingDoc?.status || 'New';
+
+    // RBAC: check ownership for regular users
+    if (!isElevated(auth.role)) {
+      const submissionOwner = (existingDoc?.user_id || '').toLowerCase();
+      const currentUser = (auth.email || '').toLowerCase();
+      if (submissionOwner !== currentUser) {
+        return {
+          status: 403,
+          jsonBody: { error: 'You can only edit your own submissions' },
+          headers: corsHeaders,
+        };
+      }
+    }
+
     // Only allow updating specific fields
     const allowedUpdates: Partial<ServiceCapture> = {};
+
+    // Fields anyone who owns the submission can edit
     const editableFields: (keyof ServiceCapture)[] = [
       'client_id', 'client_name', 'vendor', 'vendor_id',
-      'service_amount', 'region', 'program_category', 'status', 'notes', 'updated_by', 'updated_at',
-      'po_number', 'entered_in_system', 'entered_in_system_by', 'entered_in_system_at'
+      'service_amount', 'region', 'program_category', 'notes', 'updated_by', 'updated_at',
     ];
+
+    // Elevated-only fields: status, PO, entered-in-system
+    if (isElevated(auth.role)) {
+      editableFields.push(
+        'status', 'po_number', 'entered_in_system', 'entered_in_system_by', 'entered_in_system_at'
+      );
+    } else if (previousStatus === 'Corrections' && body.status === 'In Review') {
+      // Allow submitter to move their own submission back to "In Review" after corrections
+      editableFields.push('status');
+    }
 
     for (const field of editableFields) {
       if (body[field] !== undefined) {
@@ -197,9 +217,51 @@ export async function UpdateSubmission(
       }
     }
 
+    // When sending back for corrections, persist who requested it
+    const newStatus = allowedUpdates.status;
+    if (newStatus === 'Corrections' && previousStatus !== 'Corrections' && isElevated(auth.role)) {
+      allowedUpdates.corrections_requested_by = auth.email || auth.userId || 'Accounting';
+    }
+
     context.log(`Updating submission ${id} with:`, allowedUpdates);
 
     const updated = await updateCapture(id, body.service_type, allowedUpdates);
+
+    // ── Email notifications based on status transitions ──
+    try {
+      if (newStatus === 'Corrections' && previousStatus !== 'Corrections') {
+        // Status changed TO "Corrections" → email the submitter
+
+        const submitterEmail = existingDoc?.user_id;
+        if (submitterEmail && submitterEmail !== 'unknown') {
+          const { subject, html } = buildCorrectionNeededEmail({
+            clientName: existingDoc?.client_name,
+            requestedBy: allowedUpdates.corrections_requested_by || auth.email || auth.userId || 'Accounting',
+            submissionDate: existingDoc?.captured_at_utc,
+          });
+          await sendEmail(submitterEmail, subject, html);
+          context.log(`[UpdateSubmission] Correction-needed email sent → ${submitterEmail}`);
+        }
+      } else if (newStatus === 'In Review' && previousStatus === 'Corrections') {
+        // Status changed FROM "Corrections" TO "In Review" → email ssvf-notify AND the requester
+        const { subject, html } = buildCorrectionCompletedEmail({
+          clientName: updated.client_name || existingDoc?.client_name,
+          correctedBy: auth.email || auth.userId || 'Unknown',
+          submissionDate: existingDoc?.captured_at_utc,
+        });
+        await sendNotifyEmail(subject, html);
+        context.log(`[UpdateSubmission] Correction-completed email sent → ssvf-notify`);
+
+        // Also notify the individual who sent it back for corrections
+        const requester = existingDoc?.corrections_requested_by || updated.corrections_requested_by;
+        if (requester && requester !== 'Accounting' && requester !== NOTIFY_MAILBOX()) {
+          await sendEmail(requester, subject, html);
+          context.log(`[UpdateSubmission] Correction-completed email also sent → ${requester}`);
+        }
+      }
+    } catch (emailErr) {
+      context.warn('[UpdateSubmission] Email notification failed (non-blocking):', emailErr);
+    }
     
     return {
       status: 200,

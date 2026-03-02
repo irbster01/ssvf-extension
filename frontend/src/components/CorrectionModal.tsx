@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { Submission, SubmissionStatus, AttachmentMeta } from '../types';
-import { NetSuiteVendor } from '../api/submissions';
+import { NetSuiteVendor, ClientRecord } from '../api/submissions';
 import MessageThread from './MessageThread';
+import ClientAutocomplete from './ClientAutocomplete';
 
 interface CorrectionModalProps {
   submission: Submission;
   vendors: NetSuiteVendor[];
   vendorsLoading: boolean;
+  clients: ClientRecord[];
+  clientsLoading: boolean;
   currentUserEmail: string;
   getToken: () => Promise<string>;
   onSave: (updates: Partial<Submission>) => Promise<void>;
@@ -14,6 +17,7 @@ interface CorrectionModalProps {
   onUploadFile: (file: File) => Promise<AttachmentMeta>;
   onDownloadFile: (blobName: string) => Promise<void>;
   onUnreadChange?: (submissionId: string, unreadCount: number) => void;
+  onClientAdded?: (client: ClientRecord) => void;
 }
 
 const REGION_OPTIONS = ['Shreveport', 'Monroe', 'Arkansas'] as const;
@@ -29,6 +33,8 @@ function CorrectionModal({
   submission,
   vendors,
   vendorsLoading,
+  clients,
+  clientsLoading,
   currentUserEmail,
   getToken,
   onSave,
@@ -36,6 +42,7 @@ function CorrectionModal({
   onUploadFile,
   onDownloadFile,
   onUnreadChange,
+  onClientAdded,
 }: CorrectionModalProps) {
   // Editable fields
   const [clientId, setClientId] = useState(submission.client_id || '');
@@ -49,6 +56,7 @@ function CorrectionModal({
   const [uploading, setUploading] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentMeta[]>(submission.attachments || []);
   const [saved, setSaved] = useState(false);
+  const [clientSeedProgram, setClientSeedProgram] = useState<string | null>(null);
 
   // Vendor autocomplete
   const [vendorSearch, setVendorSearch] = useState(submission.vendor || '');
@@ -104,6 +112,14 @@ function CorrectionModal({
   };
 
   const handleSubmitCorrections = async () => {
+    // Warn if program doesn't match seed data
+    if (clientSeedProgram && programCategory !== clientSeedProgram) {
+      const ok = window.confirm(
+        `The selected program "${programCategory || '(none)'}" doesn't match the client's program on file ("${clientSeedProgram}"). Continue anyway?`
+      );
+      if (!ok) return;
+    }
+
     setSaving(true);
     try {
       await onSave({
@@ -119,6 +135,17 @@ function CorrectionModal({
         tfa_date: tfaDate || undefined,
       });
       setSaved(true);
+
+      // If client is not in the autocomplete list, persist as new client
+      if (clientId && clientName && !clients.find(c => c.id === clientId)) {
+        onClientAdded?.({ id: clientId, clientName, region, program: programCategory });
+      } else if (clientId && region) {
+        // Save region back to client record if it was missing
+        const existing = clients.find(c => c.id === clientId);
+        if (existing && !existing.region) {
+          onClientAdded?.({ ...existing, region, program: programCategory || existing.program });
+        }
+      }
     } finally {
       setSaving(false);
     }
@@ -214,46 +241,17 @@ function CorrectionModal({
               Make corrections to the fields below, then click "Submit Corrections" to send back to accounting.
             </div>
 
+            {/* Row 1: Date */}
             <div className="form-group">
-              <label>Client ID</label>
+              <label>TFA Date</label>
               <input
-                type="text"
-                value={clientId}
-                onChange={e => setClientId(e.target.value)}
-                placeholder="Wellsky Client ID"
+                type="date"
+                value={tfaDate}
+                onChange={e => setTfaDate(e.target.value)}
               />
             </div>
 
-            <div className="form-group">
-              <label>Client Name</label>
-              <input
-                type="text"
-                value={clientName}
-                onChange={e => setClientName(e.target.value)}
-                placeholder="Client display name"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Region</label>
-              <select value={region} onChange={e => setRegion(e.target.value)}>
-                <option value="">— Select —</option>
-                {REGION_OPTIONS.map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Program Category</label>
-              <select value={programCategory} onChange={e => setProgramCategory(e.target.value)}>
-                <option value="">— Select —</option>
-                {PROGRAM_OPTIONS.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </div>
-
+            {/* Row 2: Vendor */}
             <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
               <label>Vendor</label>
               {selectedVendor ? (
@@ -262,7 +260,10 @@ function CorrectionModal({
                   padding: '8px 12px', backgroundColor: '#e8f5e9',
                   borderRadius: '6px', border: '1px solid #a5d6a7',
                 }}>
-                  <span style={{ flex: 1, fontWeight: 500 }}>{selectedVendor.companyName}</span>
+                  <span style={{ flex: 1, fontWeight: 500 }}>
+                    {selectedVendor.companyName}
+                    <span style={{ color: '#666', fontSize: '0.85em', marginLeft: '8px' }}>NS #{selectedVendor.entityId}</span>
+                  </span>
                   <button type="button" onClick={() => { setSelectedVendor(null); setVendorSearch(''); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1em', color: '#666' }}>✕</button>
                 </div>
@@ -302,35 +303,72 @@ function CorrectionModal({
               )}
             </div>
 
-            <div className="form-group">
-              <label>Service Amount</label>
-              <input
-                type="number"
-                step="0.01"
-                value={serviceAmount}
-                onChange={e => setServiceAmount(e.target.value)}
-                placeholder="0.00"
-              />
+            {/* Row 3: Client | Region | Program */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="form-group" style={{ flex: 2 }}>
+                <ClientAutocomplete
+                  clients={clients}
+                  clientsLoading={clientsLoading}
+                  clientName={clientName}
+                  clientId={clientId}
+                  onChange={(name, id, rec) => {
+                    setClientName(name);
+                    setClientId(id);
+                    if (rec) {
+                      if (rec.program) { setProgramCategory(rec.program); setClientSeedProgram(rec.program); }
+                      if (rec.region) { setRegion(rec.region); }
+                    } else {
+                      setClientSeedProgram(null);
+                    }
+                  }}
+                />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Region</label>
+                <select value={region} onChange={e => setRegion(e.target.value)}>
+                  <option value="">— Select —</option>
+                  {REGION_OPTIONS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Program</label>
+                <select value={programCategory} onChange={e => setProgramCategory(e.target.value)}>
+                  <option value="">— Select —</option>
+                  {PROGRAM_OPTIONS.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div className="form-group">
-              <label>TFA Date</label>
-              <input
-                type="date"
-                value={tfaDate}
-                onChange={e => setTfaDate(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Notes</label>
-              <textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                placeholder="Optional notes"
-                rows={2}
-                style={{ resize: 'vertical' }}
-              />
+            {/* Row 4: Notes | Amount */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Notes</label>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Optional notes"
+                  rows={2}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+              <div className="form-group receipt-amount-group" style={{ flex: 1 }}>
+                <label>Amount</label>
+                <div className="receipt-amount-wrapper">
+                  <span className="receipt-amount-symbol">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={serviceAmount}
+                    onChange={e => setServiceAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="receipt-amount-input"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Attachments */}

@@ -1,9 +1,10 @@
-import { Submission, SubmissionStatus } from '../types';
+import { Submission, SubmissionStatus, UserRole, isElevatedRole } from '../types';
 
 interface SubmissionCardProps {
   submission: Submission;
   statusOptions: SubmissionStatus[];
   unreadCount: number;
+  userRole: UserRole;
   onStatusChange: (submission: Submission, status: SubmissionStatus) => void;
   onEdit: (submission: Submission) => void;
   onCreatePO: (submission: Submission) => void;
@@ -18,6 +19,7 @@ function SubmissionCard({
   submission,
   statusOptions,
   unreadCount,
+  userRole,
   onStatusChange,
   onEdit,
   onCreatePO,
@@ -28,6 +30,7 @@ function SubmissionCard({
   formatAmount,
 }: SubmissionCardProps) {
   const isDead = !!submission.po_number && !!submission.entered_in_system;
+  const elevated = isElevatedRole(userRole);
 
   return (
     <article
@@ -35,17 +38,23 @@ function SubmissionCard({
       role="listitem"
     >
       <div className="mobile-card-top">
-        <select
-          className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
-          value={submission.status}
-          onChange={e => onStatusChange(submission, e.target.value as SubmissionStatus)}
-          disabled={isDead}
-          aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
-        >
-          {statusOptions.map(status => (
-            <option key={status} value={status}>{status}</option>
-          ))}
-        </select>
+        {elevated ? (
+          <select
+            className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
+            value={submission.status}
+            onChange={e => onStatusChange(submission, e.target.value as SubmissionStatus)}
+            disabled={isDead}
+            aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
+          >
+            {statusOptions.map(status => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        ) : (
+          <span className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`} style={{ fontWeight: 600 }}>
+            {submission.status || 'New'}
+          </span>
+        )}
         <span className="mobile-card-amount">{formatAmount(submission.service_amount)}</span>
       </div>
       <div className="mobile-card-client">
@@ -83,7 +92,7 @@ function SubmissionCard({
         )}
       </div>
       <div className="mobile-card-actions">
-        {submission.status === 'Corrections' ? (
+        {submission.status === 'Corrections' && !elevated ? (
           <button
             className="btn mobile-card-edit"
             onClick={() => onCorrection(submission)}
@@ -97,7 +106,7 @@ function SubmissionCard({
           >
             ✎ Fix Corrections
           </button>
-        ) : (
+        ) : elevated ? (
           <button
             className="btn btn-primary mobile-card-edit"
             onClick={() => onCreatePO(submission)}
@@ -106,7 +115,7 @@ function SubmissionCard({
           >
             {isDead ? 'PO Sent' : 'Create PO'}
           </button>
-        )}
+        ) : null}
         <button
           className="btn btn-secondary mobile-card-edit"
           onClick={() => onEdit(submission)}
@@ -116,17 +125,15 @@ function SubmissionCard({
           Edit
         </button>
         <button
-          className="btn mobile-card-edit"
+          className={`msg-icon-btn msg-icon-btn-mobile${unreadCount > 0 ? ' msg-unread' : ''}`}
           onClick={() => onMessage(submission)}
-          aria-label={`Messages for ${submission.client_name || submission.client_id || 'unknown'}`}
-          style={{
-            backgroundColor: unreadCount > 0 ? '#fef2f2' : '#f0f9ff',
-            color: unreadCount > 0 ? '#dc2626' : '#0369a1',
-            border: `1px solid ${unreadCount > 0 ? '#fca5a5' : '#bae6fd'}`,
-            fontWeight: 600,
-          }}
+          aria-label={`Messages for ${submission.client_name || submission.client_id || 'unknown'}${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+          title={unreadCount > 0 ? `${unreadCount} unread` : 'Messages'}
         >
-          {unreadCount > 0 ? `Msg(${unreadCount})` : 'Msg'}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          {unreadCount > 0 && <span className="msg-badge">{unreadCount}</span>}
         </button>
       </div>
     </article>

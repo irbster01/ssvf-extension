@@ -1,10 +1,10 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getMessagesContainer, getContainer } from '../shared/cosmosClient';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { Message, MessagePayload } from '../shared/types';
 import { sendSignalRMessage } from '../SignalR';
-import { sendEmail, buildMessageNotificationEmail } from '../shared/graphClient';
+import { sendEmail, sendNotifyEmail, buildMessageNotificationEmail } from '../shared/graphClient';
+import { validateAuthWithRole, canAccessSubmission } from '../shared/rbac';
 
 const ALLOWED_ORIGINS = [
   'https://ssvf-capture-api.azurewebsites.net',
@@ -31,19 +31,7 @@ function getCorsHeaders(origin: string) {
 }
 
 async function validateAuth(request: HttpRequest, context: InvocationContext) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { valid: false as const };
-  }
-  const token = authHeader.substring(7);
-  if (!isJwtToken(token)) {
-    return { valid: false as const };
-  }
-  const validation = await validateEntraIdToken(token);
-  if (!validation.valid || !validation.userId) {
-    return { valid: false as const };
-  }
-  return { valid: true as const, userId: validation.userId, email: validation.email || '', userName: validation.userName || '' };
+  return validateAuthWithRole(request, context);
 }
 
 /**
@@ -111,9 +99,12 @@ async function PostMessage(
   }
 
   const auth = await validateAuth(request, context);
-  if (!auth.valid) {
+  if (!auth.valid || !auth.email) {
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
+
+  const senderEmail = auth.email;
+  const senderName = auth.userName || senderEmail;
 
   const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
   if (!rateLimitCheck.allowed) {
@@ -146,16 +137,16 @@ async function PostMessage(
       submissionId,
       service_type: serviceType,
       text: body.text.trim(),
-      sentBy: auth.email,
-      sentByName: auth.userName,
+      sentBy: senderEmail,
+      sentByName: senderName,
       sentAt: new Date().toISOString(),
-      readBy: [auth.email], // Sender has read their own message
+      readBy: [senderEmail], // Sender has read their own message
     };
 
     const container = await getMessagesContainer();
     await container.items.create(message);
 
-    context.log(`[Messages] Created message ${messageId} on submission ${submissionId} by ${auth.email}`);
+    context.log(`[Messages] Created message ${messageId} on submission ${submissionId} by ${senderEmail}`);
 
     // Look up the submission to find the caseworker's email and client info
     let recipientEmail: string | null = null;
@@ -176,7 +167,7 @@ async function PostMessage(
         // We'll use a heuristic: get the user_id (email from captures) and notify them if different from sender
         const submissionUserEmail = submission.user_id;
 
-        if (submissionUserEmail && submissionUserEmail !== auth.email && submissionUserEmail !== 'unknown') {
+        if (submissionUserEmail && submissionUserEmail !== senderEmail && submissionUserEmail !== 'unknown') {
           recipientEmail = submissionUserEmail;
         }
       }
@@ -191,25 +182,40 @@ async function PostMessage(
       await sendSignalRMessage(recipientEmail, 'newMessage', {
         submissionId,
         messageId,
-        senderName: auth.userName || auth.email,
-        senderEmail: auth.email,
+        senderName,
+        senderEmail,
         preview: body.text.trim().substring(0, 100),
         clientName,
       });
 
-      // Send email notification
+      // Send email notification to the other party
       const { subject, html } = buildMessageNotificationEmail({
-        senderName: auth.userName || auth.email,
+        senderName,
         messageText: body.text.trim(),
         clientName,
         submissionDate,
-        dashboardUrl: 'https://ssvf.northla.app',
       });
       await sendEmail(recipientEmail, subject, html);
     }
 
+    // If the message was sent BY the submitter (caseworker) → also notify ssvf-notify
+    // so accounting sees the new activity
+    if (!recipientEmail || recipientEmail !== senderEmail) {
+      // The sender IS the submitter — notify accounting
+      const notifyMailbox = process.env.NOTIFICATION_FROM_EMAIL;
+      if (notifyMailbox && recipientEmail !== notifyMailbox) {
+        const { subject: nSubject, html: nHtml } = buildMessageNotificationEmail({
+          senderName,
+          messageText: body.text.trim(),
+          clientName,
+          submissionDate,
+        });
+        await sendNotifyEmail(nSubject, nHtml);
+      }
+    }
+
     // Also push to the sender (so their other open tabs/extension update in real-time)
-    await sendSignalRMessage(auth.email, 'messageSent', {
+    await sendSignalRMessage(senderEmail, 'messageSent', {
       submissionId,
       messageId,
     });

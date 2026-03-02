@@ -16,6 +16,7 @@ interface EntraIdTokenPayload {
   tid?: string;
   upn?: string;
   unique_name?: string;
+  groups?: string[];
 }
 
 /**
@@ -23,7 +24,7 @@ interface EntraIdTokenPayload {
  * For Graph access tokens, we decode and verify claims without cryptographic verification
  * (Graph tokens can only be verified by Graph API itself)
  */
-export async function validateEntraIdToken(token: string): Promise<{ valid: boolean; userId?: string; userName?: string; email?: string }> {
+export async function validateEntraIdToken(token: string): Promise<{ valid: boolean; userId?: string; userName?: string; email?: string; groups?: string[] }> {
   try {
     // Decode token without verification (Graph access tokens can't be verified by third parties)
     const decoded = jwt.decode(token, { complete: true });
@@ -63,6 +64,7 @@ export async function validateEntraIdToken(token: string): Promise<{ valid: bool
       userId,
       userName,
       email,
+      groups: payload.groups,
     };
   } catch (error: any) {
     console.error('[EntraID] Token decode failed:', error.message);

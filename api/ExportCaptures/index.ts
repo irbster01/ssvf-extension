@@ -1,7 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryCaptures, QueryOptions } from '../shared/cosmosClient';
-import { validateToken } from '../AuthToken';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
+import { validateAuthWithRole, isElevated } from '../shared/rbac';
 
 /**
  * Export captures for accounting/reporting
@@ -34,42 +33,13 @@ export async function ExportCaptures(
     return { status: 204, headers: corsHeaders };
   }
 
-  // Validate token — accept both Entra ID JWT and legacy tokens
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return {
-      status: 401,
-      jsonBody: { error: 'Unauthorized' },
-      headers: corsHeaders,
-    };
+  // Auth + RBAC — elevated only (admin / accounting)
+  const auth = await validateAuthWithRole(request, context);
+  if (!auth.valid) {
+    return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
-
-  const token = authHeader.substring(7);
-  let authenticated = false;
-
-  if (isJwtToken(token)) {
-    const entraValidation = await validateEntraIdToken(token);
-    if (entraValidation.valid) {
-      authenticated = true;
-      context.log(`✅ ExportCaptures authenticated via Entra ID: ${entraValidation.email || entraValidation.userId}`);
-    }
-  }
-
-  if (!authenticated) {
-    // Fall back to legacy token validation
-    const tokenValidation = validateToken(token);
-    if (tokenValidation.valid) {
-      authenticated = true;
-      context.log(`✅ ExportCaptures authenticated via legacy token: ${tokenValidation.userId}`);
-    }
-  }
-
-  if (!authenticated) {
-    return {
-      status: 401,
-      jsonBody: { error: 'Unauthorized' },
-      headers: corsHeaders,
-    };
+  if (!isElevated(auth.role)) {
+    return { status: 403, jsonBody: { error: 'Export is restricted to accounting and admin users' }, headers: corsHeaders };
   }
 
   try {

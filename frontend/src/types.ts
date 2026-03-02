@@ -1,5 +1,11 @@
 export type SubmissionStatus = 'New' | 'Corrections' | 'In Review' | 'Submitted';
 
+export type UserRole = 'admin' | 'accounting' | 'user';
+
+export function isElevatedRole(role: UserRole): boolean {
+  return role === 'admin' || role === 'accounting';
+}
+
 export interface AttachmentMeta {
   blobName: string;
   fileName: string;

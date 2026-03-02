@@ -1,6 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
+import { validateAuthWithRole } from '../shared/rbac';
 import jwt from 'jsonwebtoken';
 
 // SignalR Service REST API helpers
@@ -67,24 +67,14 @@ async function SignalRNegotiate(
     return { status: 204, headers: corsHeaders };
   }
 
-  // Validate auth
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Validate auth via centralized RBAC
+  const auth = await validateAuthWithRole(request, context);
+  if (!auth.valid || !auth.email) {
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
-  const token = authHeader.substring(7);
-  if (!isJwtToken(token)) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
-
-  const validation = await validateEntraIdToken(token);
-  if (!validation.valid || !validation.email) {
-    return { status: 401, jsonBody: { error: 'Invalid token' }, headers: corsHeaders };
-  }
-
   // Rate limit
-  const rateLimitCheck = await checkRateLimitDistributed(validation.userId!);
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
   if (!rateLimitCheck.allowed) {
     return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
@@ -96,7 +86,7 @@ async function SignalRNegotiate(
       jsonBody: {
         url: null,
         accessToken: null,
-        userId: validation.email,
+        userId: auth.email,
         configured: false,
       },
       headers: corsHeaders,
@@ -104,7 +94,7 @@ async function SignalRNegotiate(
   }
 
   try {
-    const signalRToken = generateSignalRToken(validation.email);
+    const signalRToken = generateSignalRToken(auth.email);
     const url = `${SIGNALR_ENDPOINT}/client/?hub=${SIGNALR_HUB}`;
 
     context.log('[SignalR] Negotiate successful');
@@ -114,7 +104,7 @@ async function SignalRNegotiate(
       jsonBody: {
         url,
         accessToken: signalRToken,
-        userId: validation.email,
+        userId: auth.email,
         configured: true,
       },
       headers: corsHeaders,

@@ -4,6 +4,7 @@ import { CosmosClient, Container } from '@azure/cosmos';
 let client: CosmosClient | null = null;
 let container: Container | null = null;
 let messagesContainer: Container | null = null;
+let clientsContainer: Container | null = null;
 
 export interface CosmosConfig {
   endpoint: string;
@@ -90,6 +91,39 @@ export async function getMessagesContainer(): Promise<Container> {
 
   messagesContainer = cont;
   return messagesContainer;
+}
+
+/**
+ * Get or create the clients container (singleton)
+ * Stores client seed data (id, name) for autocomplete lookups.
+ * Partition key: /id (client ID)
+ */
+export async function getClientsContainer(): Promise<Container> {
+  if (clientsContainer) {
+    return clientsContainer;
+  }
+
+  const config = getConfig();
+
+  if (!client) {
+    client = new CosmosClient({
+      endpoint: config.endpoint,
+      key: config.key,
+    });
+  }
+
+  const { database } = await client.databases.createIfNotExists({
+    id: config.databaseId,
+  });
+
+  const { container: cont } = await database.containers.createIfNotExists({
+    id: 'clients',
+    partitionKey: { paths: ['/id'] },
+    defaultTtl: -1,
+  });
+
+  clientsContainer = cont;
+  return clientsContainer;
 }
 
 /**
@@ -282,6 +316,7 @@ export interface ServiceCapture {
   notes?: string;
   updated_by?: string;
   updated_at?: string;
+  corrections_requested_by?: string;
   // Documented / entered into ServicePoint or LSNDC
   entered_in_system?: boolean;
   entered_in_system_by?: string;

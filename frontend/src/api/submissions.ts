@@ -1,10 +1,15 @@
-import { Submission, AttachmentMeta, Message, UnreadCountResponse } from '../types';
+import { Submission, AttachmentMeta, Message, UnreadCountResponse, UserRole } from '../types';
 
 const API_BASE = import.meta.env.PROD 
   ? 'https://ssvf-capture-api.azurewebsites.net/api'
   : '/api';
 
-export async function fetchSubmissions(token: string): Promise<Submission[]> {
+export interface SubmissionsResponse {
+  submissions: Submission[];
+  role: UserRole;
+}
+
+export async function fetchSubmissions(token: string): Promise<SubmissionsResponse> {
   const response = await fetch(`${API_BASE}/submissions`, {
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -16,7 +21,13 @@ export async function fetchSubmissions(token: string): Promise<Submission[]> {
     throw new Error(`Failed to fetch submissions: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  
+  // Handle both old format (raw array) and new format ({ submissions, role })
+  if (Array.isArray(data)) {
+    return { submissions: data, role: 'user' };
+  }
+  return { submissions: data.submissions || [], role: data.role || 'user' };
 }
 
 export async function updateSubmission(
@@ -336,6 +347,48 @@ export async function negotiateSignalR(token: string): Promise<{
 
   if (!response.ok) {
     throw new Error(`Failed to negotiate SignalR: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// ============ Client Lookup ============
+
+export interface ClientRecord {
+  id: string;
+  clientName: string;
+  provider?: string;
+  program?: string;
+  region?: string;
+}
+
+export async function fetchClients(token: string): Promise<ClientRecord[]> {
+  const response = await fetch(`${API_BASE}/clients`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch clients: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.clients || [];
+}
+
+export async function addClient(token: string, id: string, clientName: string, program?: string, region?: string): Promise<ClientRecord> {
+  const response = await fetch(`${API_BASE}/clients`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id, clientName, program, region }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to add client: ${response.status}`);
   }
 
   return response.json();
