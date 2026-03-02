@@ -12,6 +12,7 @@ import CorrectionModal from './CorrectionModal';
 import PurchaseOrderModal, { PurchaseOrderData } from './PurchaseOrderModal';
 import SubmitTFA from './SubmitTFA';
 import AnalyticsModal from './AnalyticsModal';
+import TimelineModal from './TimelineModal';
 import SubmissionRow from './SubmissionRow';
 import SubmissionCard from './SubmissionCard';
 
@@ -42,6 +43,7 @@ function Dashboard() {
   const [messageSubmission, setMessageSubmission] = useState<Submission | null>(null);
   const [correctionSubmission, setCorrectionSubmission] = useState<Submission | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
   const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
   const [clients, setClients] = useState<ClientRecord[]>([]);
@@ -677,6 +679,9 @@ function Dashboard() {
                 Analytics
               </button>
             )}
+            <button className="btn btn-secondary" onClick={() => setShowTimeline(true)} aria-label="View MVP timeline">
+              Timeline
+            </button>
             {lastRefreshed && (
               <span className="last-refreshed" title={lastRefreshed.toLocaleString()}>
                 {lastRefreshed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
@@ -834,6 +839,13 @@ function Dashboard() {
         <AnalyticsModal
           submissions={submissions}
           onClose={() => setShowAnalytics(false)}
+        />
+      )}
+
+      {/* Timeline Modal */}
+      {showTimeline && (
+        <TimelineModal
+          onClose={() => setShowTimeline(false)}
         />
       )}
     </>
