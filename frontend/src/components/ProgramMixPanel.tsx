@@ -29,13 +29,15 @@ const TARGET_HP = 40;
 
 function buildBucket(rrh: number, hp: number, rrhAmt: number, hpAmt: number): MixBucket {
   const total = rrh + hp;
+  const totalAmount = rrhAmt + hpAmt;
   return {
     rrh, hp, total,
-    rrhPct: total > 0 ? (rrh / total) * 100 : 0,
-    hpPct: total > 0 ? (hp / total) * 100 : 0,
+    // Percentages based on dollar amounts (contractual 60/40 is by spend)
+    rrhPct: totalAmount > 0 ? (rrhAmt / totalAmount) * 100 : 0,
+    hpPct: totalAmount > 0 ? (hpAmt / totalAmount) * 100 : 0,
     rrhAmount: rrhAmt,
     hpAmount: hpAmt,
-    totalAmount: rrhAmt + hpAmt,
+    totalAmount,
   };
 }
 
@@ -132,10 +134,10 @@ export default function ProgramMixPanel({ submissions }: ProgramMixPanelProps) {
     <div className="mix-bar-container">
       <div className="mix-bar" style={{ height }}>
         <div className="mix-bar-rrh" style={{ width: `${bucket.rrhPct}%` }}>
-          {showLabels && bucket.rrhPct >= 15 && <span className="mix-bar-text">{bucket.rrh} RRH</span>}
+          {showLabels && bucket.rrhPct >= 15 && <span className="mix-bar-text">{fmt(bucket.rrhAmount)}</span>}
         </div>
         <div className="mix-bar-hp" style={{ width: `${bucket.hpPct}%` }}>
-          {showLabels && bucket.hpPct >= 15 && <span className="mix-bar-text">{bucket.hp} HP</span>}
+          {showLabels && bucket.hpPct >= 15 && <span className="mix-bar-text">{fmt(bucket.hpAmount)}</span>}
         </div>
       </div>
       <div className="mix-target-line" style={{ left: '60%' }}>
@@ -176,16 +178,16 @@ export default function ProgramMixPanel({ submissions }: ProgramMixPanelProps) {
                 <div className="mix-summary-title">Combined (All TFAs)</div>
                 <div className="mix-summary-labels">
                   <span className="mix-label-rrh">
-                    RRH: {data.totals.combined.rrh} ({data.totals.combined.rrhPct.toFixed(1)}%) — {fmt(data.totals.combined.rrhAmount)}
+                    RRH: {fmt(data.totals.combined.rrhAmount)} ({data.totals.combined.rrhPct.toFixed(1)}%) — {data.totals.combined.rrh} TFAs
                   </span>
                   <span className="mix-label-hp">
-                    HP: {data.totals.combined.hp} ({data.totals.combined.hpPct.toFixed(1)}%) — {fmt(data.totals.combined.hpAmount)}
+                    HP: {fmt(data.totals.combined.hpAmount)} ({data.totals.combined.hpPct.toFixed(1)}%) — {data.totals.combined.hp} TFAs
                   </span>
                 </div>
                 {renderBar(data.totals.combined, 28, true)}
                 <div className="mix-bar-legend">
                   <span>0%</span>
-                  <span>Total: {data.totals.combined.total} TFAs — {fmt(data.totals.combined.totalAmount)}</span>
+                  <span>Total: {fmt(data.totals.combined.totalAmount)} — {data.totals.combined.total} TFAs</span>
                   <span>100%</span>
                 </div>
               </div>
