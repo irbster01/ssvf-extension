@@ -14,5 +14,6 @@ import '../UnreadCount/index';
 import '../SignalR/index';
 import '../Clients/index';
 import '../BudgetEstimates/index';
+import '../AnalyzeReceipt/index';
 
 // The functions are registered via app.http() calls in their respective modules

@@ -99,6 +99,46 @@ export async function getAttachmentDownloadUrl(
   return data.url;
 }
 
+// ============ AI Receipt Analysis ============
+
+export interface ReceiptAnalysisResult {
+  success: boolean;
+  message?: string;
+  vendorName?: string | null;
+  amount?: number | null;
+  date?: string | null;        // YYYY-MM-DD
+  assistanceType?: string | null;
+  description?: string | null;
+  confidence: {
+    vendorName?: number;
+    amount?: number;
+    date?: number;
+  };
+}
+
+export async function analyzeReceipt(token: string, file: File): Promise<ReceiptAnalysisResult> {
+  const base64 = await fileToBase64(file);
+
+  const response = await fetch(`${API_BASE}/receipts/analyze`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type || 'application/octet-stream',
+      data: base64,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Receipt analysis failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

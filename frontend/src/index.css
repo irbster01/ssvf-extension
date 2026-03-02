@@ -2919,3 +2919,92 @@ tr.row-status-submitted td:first-child {
   }
 }
 
+/* ============================================================
+   AI Receipt Analysis
+   ============================================================ */
+
+/* Upload label with hint */
+.ai-upload-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-upload-hint {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #ff9800;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 4px;
+  padding: 1px 7px;
+}
+
+/* Extended drop zone for AI context */
+.ai-drop-zone {
+  min-height: 80px;
+}
+
+.ai-drop-zone.analyzing {
+  border-color: #ff9800;
+  background: #fff8e1;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Analyzing spinner */
+.ai-spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #ffe082;
+  border-top-color: #ff9800;
+  border-radius: 50%;
+  animation: ai-spin 0.8s linear infinite;
+  margin-bottom: 4px;
+}
+
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* AI-filled banner */
+.ai-filled-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 6px;
+  font-size: 0.87rem;
+  color: #795548;
+  margin-bottom: 2px;
+}
+
+/* Inline AI badge on field labels */
+.ai-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #ff9800;
+  color: #fff;
+  font-weight: 700;
+  vertical-align: middle;
+  margin-left: 6px;
+  letter-spacing: 0.03em;
+}
+
+/* Inline AI badge for banner use (slightly larger) */
+.ai-badge-inline {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ff9800;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}

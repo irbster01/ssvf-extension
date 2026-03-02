@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { submitCapture, uploadAttachment, TFASubmission, NetSuiteVendor, ClientRecord } from '../api/submissions';
+import { submitCapture, uploadAttachment, analyzeReceipt as analyzeReceiptAPI, TFASubmission, NetSuiteVendor, ClientRecord, ReceiptAnalysisResult } from '../api/submissions';
 import ClientAutocomplete from './ClientAutocomplete';
 
 const FINANCIAL_ASSISTANCE_TYPES = [
@@ -49,6 +49,8 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
   const dropRef = useRef<HTMLDivElement>(null);
 
   // Vendor autocomplete state
@@ -112,12 +114,75 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
   const set = (field: keyof TFASubmission, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
+  const triggerAnalysis = useCallback(async (file: File) => {
+    setAnalyzing(true);
+    setAiFilledFields(new Set());
+    try {
+      const token = await getToken();
+      const result: ReceiptAnalysisResult = await analyzeReceiptAPI(token, file);
+      if (!result.success) return;
+
+      const filled = new Set<string>();
+
+      // Vendor — try to match against loaded vendor list
+      if (result.vendorName && (result.confidence.vendorName ?? 0) > 0.5) {
+        const name = result.vendorName;
+        const exact = vendors.find(v => v.companyName.toLowerCase() === name.toLowerCase());
+        const partial = vendors.find(v =>
+          v.companyName.toLowerCase().includes(name.toLowerCase()) ||
+          name.toLowerCase().includes(v.companyName.toLowerCase())
+        );
+        const firstWord = vendors.find(v =>
+          v.companyName.toLowerCase().split(/\s+/)[0] === name.toLowerCase().split(/\s+/)[0]
+        );
+        const match = exact || partial || firstWord;
+        if (match) {
+          setSelectedVendor(match);
+          setVendorSearch(match.companyName);
+          setForm(prev => ({ ...prev, vendor: match.companyName, vendorId: match.id }));
+        } else {
+          setVendorSearch(name);
+          setForm(prev => ({ ...prev, vendor: name, vendorId: '' }));
+        }
+        filled.add('vendor');
+      }
+
+      // Amount
+      if (result.amount != null && (result.confidence.amount ?? 0) > 0.5) {
+        setForm(prev => ({ ...prev, amount: result.amount!.toFixed(2) }));
+        filled.add('amount');
+      }
+
+      // Date
+      if (result.date && (result.confidence.date ?? 0) > 0.5) {
+        setForm(prev => ({ ...prev, tfaDate: result.date! }));
+        filled.add('date');
+      }
+
+      // Assistance type (keyword inference — always apply if found)
+      if (result.assistanceType) {
+        setForm(prev => ({ ...prev, assistanceType: result.assistanceType! }));
+        filled.add('assistanceType');
+      }
+
+      setAiFilledFields(filled);
+    } catch (err) {
+      // Silent fail — AI is an enhancement, not a requirement
+      console.warn('[AnalyzeReceipt] Analysis failed, proceeding manually:', err);
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [getToken, vendors]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
     const maxSize = 10 * 1024 * 1024;
     const valid = selected.filter(f => f.size <= maxSize);
     if (valid.length < selected.length) {
       setMessage({ type: 'error', text: 'Some files exceeded 10 MB and were skipped.' });
+    }
+    if (files.length === 0 && valid.length > 0) {
+      triggerAnalysis(valid[0]);
     }
     setFiles(prev => [...prev, ...valid]);
     e.target.value = '';
@@ -139,8 +204,11 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
     if (valid.length < dropped.length) {
       setMessage({ type: 'error', text: 'Some files exceeded 10 MB and were skipped.' });
     }
+    if (files.length === 0 && valid.length > 0) {
+      triggerAnalysis(valid[0]);
+    }
     setFiles(prev => [...prev, ...valid]);
-  }, []);
+  }, [triggerAnalysis, files.length]);
 
   // Summary line
   const summaryLine = useMemo(() => {
@@ -158,6 +226,7 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
     setVendorSearch('');
     setShowNotes(false);
     setClientSeedProgram('');
+    setAiFilledFields(new Set());
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -241,9 +310,61 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
       )}
 
       <form onSubmit={handleSubmit} className="tfa-form receipt-form">
+
+        {/* Receipt Upload — top of form, triggers AI analysis */}
+        <div className="form-group">
+          <label className="ai-upload-label">
+            Receipt / Invoice
+            <span className="ai-upload-hint">AI will fill your form</span>
+          </label>
+          <div
+            ref={dropRef}
+            className={`receipt-drop-zone ai-drop-zone${dragging ? ' dragging' : ''}${analyzing ? ' analyzing' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => !analyzing && document.getElementById('tfa-file-input')?.click()}
+          >
+            <input id="tfa-file-input" type="file" multiple accept="image/*,.pdf" onChange={handleFileSelect} style={{ display: 'none' }} />
+            {analyzing ? (
+              <div className="drop-zone-content">
+                <span className="ai-spinner" />
+                <span>Analyzing receipt...</span>
+              </div>
+            ) : (
+              <div className="drop-zone-content">
+                <span className="drop-zone-icon">📄</span>
+                <span>Drop receipt here or <strong>click to browse</strong></span>
+                <span className="drop-zone-hint">JPEG, PNG, or PDF — AI reads vendor, amount & date</span>
+              </div>
+            )}
+          </div>
+          {files.length > 0 && (
+            <div className="file-list">
+              {files.map((f, i) => (
+                <span key={i} className="file-chip">
+                  {f.name}
+                  <button type="button" onClick={() => removeFile(i)} className="file-remove">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* AI filled banner */}
+        {!analyzing && aiFilledFields.size > 0 && (
+          <div className="ai-filled-banner">
+            <span className="ai-badge-inline">AI</span>
+            Filled {aiFilledFields.size} field{aiFilledFields.size > 1 ? 's' : ''} from your receipt — review and confirm below
+          </div>
+        )}
+
         {/* Row 1: Date (full width) */}
         <div className="form-group">
-          <label>Date *</label>
+          <label>
+            Date *
+            {aiFilledFields.has('date') && <span className="ai-badge">AI</span>}
+          </label>
           <input
             type="date"
             value={form.tfaDate}
@@ -255,7 +376,10 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
         {/* Row 2: Vendor | Assistance Type */}
         <div className="form-row">
           <div className="form-group" style={{ flex: 1 }}>
-            <label>Vendor *</label>
+            <label>
+              Vendor *
+              {aiFilledFields.has('vendor') && <span className="ai-badge">AI</span>}
+            </label>
             <div className="vendor-autocomplete" ref={dropdownRef}>
               {selectedVendor ? (
                 <div style={{
@@ -319,7 +443,10 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
             </div>
           </div>
           <div className="form-group" style={{ flex: 1 }}>
-            <label>Assistance Type *</label>
+            <label>
+              Assistance Type *
+              {aiFilledFields.has('assistanceType') && <span className="ai-badge">AI</span>}
+            </label>
             <select
               value={form.assistanceType}
               onChange={e => set('assistanceType', e.target.value)}
@@ -400,7 +527,10 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
             )}
           </div>
           <div className="form-group receipt-amount-group" style={{ flex: 1 }}>
-            <label>Amount *</label>
+            <label>
+              Amount *
+              {aiFilledFields.has('amount') && <span className="ai-badge">AI</span>}
+            </label>
             <div className="receipt-amount-wrapper">
               <span className="receipt-amount-symbol">$</span>
               <input
@@ -414,36 +544,6 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
               />
             </div>
           </div>
-        </div>
-
-        {/* Row 5: Receipt Attachments (drag-and-drop) */}
-        <div className="form-group">
-          <label>Receipt Attachments</label>
-          <div
-            ref={dropRef}
-            className={`receipt-drop-zone${dragging ? ' dragging' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById('tfa-file-input')?.click()}
-          >
-            <input id="tfa-file-input" type="file" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
-            <div className="drop-zone-content">
-              <span className="drop-zone-icon">📎</span>
-              <span>Drag files here or <strong>click to browse</strong></span>
-              <span className="drop-zone-hint">Max 10 MB per file</span>
-            </div>
-          </div>
-          {files.length > 0 && (
-            <div className="file-list">
-              {files.map((f, i) => (
-                <span key={i} className="file-chip">
-                  {f.name}
-                  <button type="button" onClick={() => removeFile(i)} className="file-remove">×</button>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Summary strip */}
