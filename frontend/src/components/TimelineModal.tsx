@@ -77,8 +77,22 @@ const milestones: Milestone[] = [
     ],
   },
   {
-    id: 'p0',
+    id: 'visibility',
     phase: 'Phase 5',
+    title: 'Operational Visibility',
+    description: 'Budget tracking & compliance monitoring',
+    status: 'completed',
+    items: [
+      'Budget vs Actual from NetSuite (live)',
+      'Spend tracking by GL account & region',
+      'Program Mix panel (RRH/HP ratio)',
+      'SSVF compliance: 60/40 RRH/HP target',
+      'Per-region breakdown with status indicators',
+    ],
+  },
+  {
+    id: 'p0',
+    phase: 'Phase 6',
     title: 'P0 Security Hardening',
     description: 'Must-fix before user handoff',
     status: 'in-progress',
@@ -93,7 +107,7 @@ const milestones: Milestone[] = [
   },
   {
     id: 'p1',
-    phase: 'Phase 6',
+    phase: 'Phase 7',
     title: 'P1 MVP Features',
     description: 'Should ship with MVP',
     status: 'pending',
@@ -106,7 +120,7 @@ const milestones: Milestone[] = [
   },
   {
     id: 'polish',
-    phase: 'Phase 7',
+    phase: 'Phase 8',
     title: 'P2 Polish',
     description: 'Nice to have for launch',
     status: 'pending',
