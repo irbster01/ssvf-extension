@@ -1169,12 +1169,26 @@ tr.row-status-submitted td:first-child {
 /* ── PO Amount Display ── */
 .po-amount-display {
   display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 4px;
-  padding: 14px 0;
-  margin-bottom: 16px;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 16px 0;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  border-top: 2px solid #e0e0e0;
   border-bottom: 2px solid #e0e0e0;
+}
+.po-amount-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.po-amount-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
 .po-amount-symbol {
   font-size: 1.3rem;
@@ -1197,6 +1211,47 @@ tr.row-status-submitted td:first-child {
 }
 .po-field-required {
   border-color: #fca5a5 !important;
+}
+
+/* ── PO Vendor Selected ── */
+.po-vendor-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #e8f5e9;
+  border-radius: 6px;
+  border: 1px solid #a5d6a7;
+}
+.po-vendor-selected-name {
+  flex: 1;
+  font-weight: 500;
+}
+.po-vendor-selected-id {
+  color: #666;
+  font-size: 0.85em;
+  margin-left: 8px;
+}
+.po-vendor-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1em;
+  color: #666;
+}
+.po-vendor-clear-btn:hover {
+  color: #333;
+}
+
+/* ── PO Form Spacing (replaces inline styles) ── */
+.po-form-group {
+  margin: 0;
+}
+.po-form-group-mt {
+  margin-top: 12px;
+}
+.po-form-grid-mt {
+  margin-top: 12px;
 }
 
 /* ── PO Memo ── */
@@ -2088,3 +2143,779 @@ tr.row-status-submitted td:first-child {
     padding: 18px 14px;
   }
 }
+
+/* ============================================================
+   BUDGET PANEL
+   ============================================================ */
+
+.budget-panel {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.budget-panel-collapsed {
+  cursor: pointer;
+}
+
+.budget-panel-collapsed:hover {
+  border-color: #1976d2;
+}
+
+.budget-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+}
+
+.budget-panel-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.budget-fy-label {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.budget-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.budget-select {
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.budget-refresh-btn,
+.budget-collapse-btn,
+.budget-expand-btn {
+  background: none;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: #666;
+}
+
+.budget-refresh-btn:hover,
+.budget-collapse-btn:hover,
+.budget-expand-btn:hover {
+  background: #e3f2fd;
+  border-color: #1976d2;
+  color: #1976d2;
+}
+
+.budget-quick-stat {
+  font-size: 13px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.budget-error {
+  padding: 10px 16px;
+  background: #fdecea;
+  color: #c62828;
+  font-size: 13px;
+}
+
+.budget-loading {
+  padding: 24px 16px;
+  text-align: center;
+  color: #666;
+  font-size: 13px;
+}
+
+/* Summary cards */
+.budget-summary-row {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.budget-summary-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.budget-summary-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.budget-summary-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.budget-spent { color: #1565c0; }
+.budget-over { color: #c62828 !important; }
+.budget-under { color: #2e7d32; }
+
+/* Region chips */
+.budget-region-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+}
+
+.budget-region-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.budget-region-chip:hover {
+  background: #e3f2fd;
+  border-color: #1976d2;
+}
+
+.budget-region-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.budget-region-amt {
+  color: #888;
+  font-size: 11px;
+}
+
+/* Progress bar */
+.budget-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #eee;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.budget-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.budget-progress-overflow {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  background: repeating-linear-gradient(
+    -45deg,
+    #c62828,
+    #c62828 2px,
+    #e53935 2px,
+    #e53935 4px
+  );
+  border-radius: 0 3px 3px 0;
+}
+
+.budget-status-good .budget-progress-fill,
+.budget-progress-fill.budget-status-good { background: #43a047; }
+
+.budget-status-caution .budget-progress-fill,
+.budget-progress-fill.budget-status-caution { background: #fb8c00; }
+
+.budget-status-warning .budget-progress-fill,
+.budget-progress-fill.budget-status-warning { background: #e65100; }
+
+.budget-status-over .budget-progress-fill,
+.budget-progress-fill.budget-status-over { background: #c62828; }
+
+.budget-status-none .budget-progress-fill,
+.budget-progress-fill.budget-status-none { background: #bdbdbd; }
+
+/* Status text colors */
+.budget-status-good { color: #2e7d32; }
+.budget-status-caution { color: #e65100; }
+.budget-status-warning { color: #bf360c; }
+.budget-status-over { color: #c62828; }
+.budget-status-none { color: #9e9e9e; }
+
+.budget-pct { font-weight: 600; margin-left: 4px; }
+
+/* Table */
+.budget-table-wrap {
+  overflow-x: auto;
+}
+
+.budget-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.budget-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.budget-table th {
+  text-align: left;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-bottom: 2px solid #e0e0e0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.budget-th-num {
+  text-align: right !important;
+  min-width: 85px;
+}
+
+.budget-th-progress {
+  min-width: 120px;
+}
+
+.budget-row {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.budget-row:hover {
+  background: #fafafa;
+}
+
+.budget-row-expandable {
+  cursor: pointer;
+}
+
+.budget-row-expandable:hover {
+  background: #f5f8ff;
+}
+
+.budget-row-expanded {
+  background: #f5f8ff;
+}
+
+.budget-child-row {
+  background: #fafbfc;
+}
+
+.budget-child-row:hover {
+  background: #f0f4f8;
+}
+
+.budget-td-category {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.budget-td-child {
+  padding-left: 30px;
+}
+
+.budget-td-num {
+  text-align: right;
+  padding: 8px 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.budget-td-progress {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.budget-expand-arrow {
+  font-size: 11px;
+  color: #999;
+  width: 12px;
+  display: inline-block;
+}
+
+.budget-acct-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.budget-unbudgeted-tag {
+  font-size: 10px;
+  background: #fff3e0;
+  color: #e65100;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.budget-child-indent {
+  color: #666;
+  font-size: 12px;
+}
+
+.budget-pct-label {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 32px;
+  text-align: right;
+}
+
+.budget-txn-count {
+  color: #888;
+  font-size: 12px;
+}
+
+.budget-footer {
+  padding: 8px 16px;
+  font-size: 11px;
+  color: #999;
+  background: #fafafa;
+  border-top: 1px solid #eee;
+}
+
+/* Summary card progress bar */
+.budget-summary-card .budget-progress-track {
+  margin-top: 6px;
+}
+
+@media (max-width: 768px) {
+  .budget-summary-row {
+    flex-wrap: wrap;
+  }
+
+  .budget-summary-card {
+    min-width: 45%;
+  }
+
+  .budget-controls {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+
+  .budget-panel-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+/* ==========================================
+   Program Mix Panel — RRH / HP Ratio Tracker
+   ========================================== */
+
+.mix-panel {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.mix-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: #fafafa;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.mix-header:hover {
+  background: #f0f0f0;
+}
+
+.mix-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mix-chevron {
+  color: #666;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.mix-chevron-open {
+  transform: rotate(90deg);
+}
+
+.mix-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.mix-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mix-header-subtitle {
+  font-size: 12px;
+  color: #888;
+}
+
+.mix-header-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+
+.mix-status-good {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.mix-status-warning {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.mix-status-danger {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.mix-body {
+  padding: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.mix-empty {
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+  padding: 20px 0;
+}
+
+/* Combined summary bar */
+.mix-summary {
+  margin-bottom: 20px;
+}
+
+.mix-summary-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mix-label-rrh {
+  color: #1565c0;
+}
+
+.mix-label-hp {
+  color: #2e7d32;
+}
+
+.mix-bar-container {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.mix-bar {
+  display: flex;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.mix-bar-rrh {
+  background: linear-gradient(135deg, #1976d2, #42a5f5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.4s ease;
+  min-width: 0;
+}
+
+.mix-bar-hp {
+  background: linear-gradient(135deg, #388e3c, #66bb6a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.4s ease;
+  min-width: 0;
+}
+
+.mix-bar-text {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.mix-target-line {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #333;
+  transform: translateX(-1px);
+  z-index: 1;
+}
+
+.mix-target-label {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 700;
+  color: #333;
+  background: #fff;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.mix-bar-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* Per-region cards */
+.mix-regions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mix-region-card {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.mix-region-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.mix-region-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.mix-region-statuses {
+  display: flex;
+  gap: 8px;
+}
+
+.mix-region-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.mix-region-card .mix-bar {
+  height: 22px;
+  border-radius: 5px;
+}
+
+.mix-region-card .mix-bar-text {
+  font-size: 10px;
+}
+
+.mix-region-details {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: #666;
+  margin-top: 6px;
+}
+
+/* Summary title */
+.mix-summary-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 4px;
+}
+
+/* NetSuite vs Pending split section */
+.mix-split-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #eee;
+}
+
+.mix-segment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mix-segment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mix-segment-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mix-segment-icon {
+  font-size: 12px;
+}
+
+.mix-segment-count {
+  font-weight: 400;
+  color: #888;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.mix-segment-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.mix-segment-details {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* Region sub-breakdown */
+.mix-region-split {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #ddd;
+}
+
+.mix-region-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #555;
+}
+
+.mix-sub-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mix-sub-ratio {
+  color: #888;
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+.mix-sub-amounts {
+  font-weight: 500;
+  color: #444;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mix-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .mix-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mix-region-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .mix-region-details {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .mix-summary-labels {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mix-segment-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .mix-segment-details {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+

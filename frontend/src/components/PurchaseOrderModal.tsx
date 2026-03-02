@@ -426,7 +426,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
           </div>
         )}
 
-        {/* ─── Summary + Amount ─── */}
+        {/* ─── Summary ─── */}
         <div className="po-summary-strip">
           <div className="po-summary-row">
             <span className="po-summary-label">Client</span>
@@ -442,27 +442,19 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
             <span className="po-summary-value">{assistanceType}</span>
           </div>
         </div>
-        <div className="po-amount-display">
-          <span className="po-amount-symbol">$</span>
-          <span className="po-amount-value">{(submission.service_amount || 0).toFixed(2)}</span>
-        </div>
 
         {/* ─── Vendor ─── */}
         <div className="po-section">
           <h3 className="po-section-title">Vendor {!selectedVendor && <span className="po-required-dot">●</span>}</h3>
           <div className="vendor-autocomplete" ref={dropdownRef}>
             {selectedVendor ? (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 12px', backgroundColor: '#e8f5e9',
-                borderRadius: '6px', border: '1px solid #a5d6a7',
-              }}>
-                <span style={{ flex: 1, fontWeight: 500 }}>
+              <div className="po-vendor-selected">
+                <span className="po-vendor-selected-name">
                   {selectedVendor.companyName}
-                  <span style={{ color: '#666', fontSize: '0.85em', marginLeft: '8px' }}>NS #{selectedVendor.entityId}</span>
+                  <span className="po-vendor-selected-id">NS #{selectedVendor.entityId}</span>
                 </span>
                 <button type="button" onClick={() => { setSelectedVendor(null); setVendorSearch(''); inputRef.current?.focus(); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1em', color: '#666' }}>✕</button>
+                  className="po-vendor-clear-btn">✕</button>
               </div>
             ) : (
               <input
@@ -509,7 +501,7 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
           </div>
         </div>
 
-        {/* ─── PO Memo (combined) ─── */}
+        {/* ─── PO Memo ─── */}
         <div className="po-section">
           <h3 className="po-section-title">Memo</h3>
           <input
@@ -519,6 +511,89 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
             placeholder="Enter memo for purchase order"
             className="po-memo-input"
           />
+        </div>
+
+        {/* ─── NetSuite Mappings (collapsible accordion) ─── */}
+        <div className="po-section po-accordion">
+          <button
+            type="button"
+            className="po-accordion-toggle"
+            onClick={() => setShowMappings(!showMappings)}
+          >
+            <span className="po-accordion-arrow">{showMappings ? '▾' : '▸'}</span>
+            <span className="po-accordion-label">NetSuite Mappings</span>
+            {!showMappings && (
+              <span className="po-accordion-summary">{mappingSummary}</span>
+            )}
+          </button>
+
+          {showMappings && (
+            <div className="po-accordion-body">
+              {/* Client Type & Financial Assistance Type */}
+              <div className="po-form-grid">
+                <div className="form-group po-form-group">
+                  <label>Client Type</label>
+                  <select value={selectedClientTypeId} onChange={e => setSelectedClientTypeId(e.target.value)} className="po-select">
+                    <option value="">— Select —</option>
+                    {CLIENT_TYPES.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group po-form-group">
+                  <label>Financial Assistance Type</label>
+                  <select value={selectedFATypeId} onChange={e => setSelectedFATypeId(e.target.value)} className="po-select">
+                    <option value="">— Select —</option>
+                    {FINANCIAL_ASSISTANCE_TYPES.map(fa => <option key={fa.id} value={fa.id}>{fa.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Assistance Month */}
+              <div className="form-group po-form-group-mt">
+                <label>Assistance Month</label>
+                <select value={selectedMonthId} onChange={e => setSelectedMonthId(e.target.value)} className="po-select">
+                  <option value="">— Select —</option>
+                  {MONTH_NAMES.map((m, i) => <option key={i+1} value={String(i+1)}>{m}</option>)}
+                </select>
+              </div>
+
+              {/* Item Category */}
+              <div className="form-group po-form-group-mt">
+                <label>Item Category</label>
+                <select
+                  value={selectedItemId}
+                  onChange={e => { setSelectedItemId(e.target.value); setSelectedAccountId(guessAccountId(e.target.value)); }}
+                  className="po-select"
+                >
+                  {NETSUITE_ITEMS.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
+                </select>
+              </div>
+
+              {/* Department & Site */}
+              <div className="po-form-grid po-form-grid-mt">
+                <div className="form-group po-form-group">
+                  <label>Department</label>
+                  <select value={selectedDeptId} onChange={e => setSelectedDeptId(e.target.value)} className="po-select">
+                    {NETSUITE_DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group po-form-group">
+                  <label>Site</label>
+                  <select value={selectedSiteId} onChange={e => setSelectedSiteId(e.target.value)} className="po-select">
+                    {NETSUITE_SITES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* GL Account */}
+              <div className="form-group po-form-group-mt">
+                <label>GL Account</label>
+                <select value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="po-select">
+                  <option value="">— Select account —</option>
+                  {NETSUITE_ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.number} — {a.name}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ─── Attachments ─── */}
@@ -552,87 +627,13 @@ function PurchaseOrderModal({ submission, vendors, vendorsLoading, onClose, onSu
           </div>
         )}
 
-        {/* ─── NetSuite Mappings (collapsible accordion) ─── */}
-        <div className="po-section po-accordion">
-          <button
-            type="button"
-            className="po-accordion-toggle"
-            onClick={() => setShowMappings(!showMappings)}
-          >
-            <span className="po-accordion-arrow">{showMappings ? '▾' : '▸'}</span>
-            <span className="po-accordion-label">NetSuite Mappings</span>
-            {!showMappings && (
-              <span className="po-accordion-summary">{mappingSummary}</span>
-            )}
-          </button>
-
-          {showMappings && (
-            <div className="po-accordion-body">
-              {/* Client Type & Financial Assistance Type */}
-              <div className="po-form-grid">
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Client Type</label>
-                  <select value={selectedClientTypeId} onChange={e => setSelectedClientTypeId(e.target.value)} className="po-select">
-                    <option value="">— Select —</option>
-                    {CLIENT_TYPES.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Financial Assistance Type</label>
-                  <select value={selectedFATypeId} onChange={e => setSelectedFATypeId(e.target.value)} className="po-select">
-                    <option value="">— Select —</option>
-                    {FINANCIAL_ASSISTANCE_TYPES.map(fa => <option key={fa.id} value={fa.id}>{fa.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Assistance Month */}
-              <div className="form-group" style={{ marginTop: '12px' }}>
-                <label>Assistance Month</label>
-                <select value={selectedMonthId} onChange={e => setSelectedMonthId(e.target.value)} className="po-select">
-                  <option value="">— Select —</option>
-                  {MONTH_NAMES.map((m, i) => <option key={i+1} value={String(i+1)}>{m}</option>)}
-                </select>
-              </div>
-
-              {/* Item Category */}
-              <div className="form-group" style={{ marginTop: '12px' }}>
-                <label>Item Category</label>
-                <select
-                  value={selectedItemId}
-                  onChange={e => { setSelectedItemId(e.target.value); setSelectedAccountId(guessAccountId(e.target.value)); }}
-                  className="po-select"
-                >
-                  {NETSUITE_ITEMS.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
-                </select>
-              </div>
-
-              {/* Department & Site */}
-              <div className="po-form-grid" style={{ marginTop: '12px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Department</label>
-                  <select value={selectedDeptId} onChange={e => setSelectedDeptId(e.target.value)} className="po-select">
-                    {NETSUITE_DEPARTMENTS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Site</label>
-                  <select value={selectedSiteId} onChange={e => setSelectedSiteId(e.target.value)} className="po-select">
-                    {NETSUITE_SITES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* GL Account */}
-              <div className="form-group" style={{ marginTop: '12px' }}>
-                <label>GL Account</label>
-                <select value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="po-select">
-                  <option value="">— Select account —</option>
-                  {NETSUITE_ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.number} — {a.name}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
+        {/* ─── Amount Total ─── */}
+        <div className="po-amount-display">
+          <span className="po-amount-label">PO Total</span>
+          <div className="po-amount-row">
+            <span className="po-amount-symbol">$</span>
+            <span className="po-amount-value">{(submission.service_amount || 0).toFixed(2)}</span>
+          </div>
         </div>
 
         {/* ─── Send Back Panel ─── */}

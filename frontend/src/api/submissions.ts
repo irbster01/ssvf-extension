@@ -393,3 +393,64 @@ export async function addClient(token: string, id: string, clientName: string, p
 
   return response.json();
 }
+
+// ============ BUDGET ESTIMATES ============
+
+export interface BudgetLineItem {
+  accountNumber: string;
+  accountName: string;
+  department: string;
+  region: string;
+  budgetAnnual: number;
+  budgetMonthly: number[];
+  actualSpent: number;
+  actualByMonth: Record<string, number>;
+  remaining: number;
+  percentUsed: number;
+  transactionCount: number;
+}
+
+export interface BudgetSummary {
+  fiscalYear: string;
+  fiscalYearId: string;
+  asOf: string;
+  departments: string[];
+  lineItems: BudgetLineItem[];
+  totals: {
+    totalBudget: number;
+    totalSpent: number;
+    totalRemaining: number;
+    percentUsed: number;
+  };
+  byRegion: Record<string, {
+    totalBudget: number;
+    totalSpent: number;
+    remaining: number;
+    percentUsed: number;
+  }>;
+}
+
+export async function fetchBudgetEstimates(
+  token: string,
+  options?: { region?: string; tfaOnly?: boolean }
+): Promise<BudgetSummary> {
+  const params = new URLSearchParams();
+  if (options?.region) params.set('region', options.region);
+  if (options?.tfaOnly) params.set('tfa', 'true');
+
+  const qs = params.toString();
+  const url = `${API_BASE}/budget${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch budget data: ${response.status}`);
+  }
+
+  return response.json();
+}

@@ -15,6 +15,8 @@ import AnalyticsModal from './AnalyticsModal';
 import TimelineModal from './TimelineModal';
 import SubmissionRow from './SubmissionRow';
 import SubmissionCard from './SubmissionCard';
+import BudgetPanel from './BudgetPanel';
+import ProgramMixPanel from './ProgramMixPanel';
 
 interface Toast {
   id: number;
@@ -581,6 +583,10 @@ function Dashboard() {
       {error && <div className="error">{error}</div>}
 
       <SubmitTFA getToken={getToken} onSubmitted={loadSubmissions} vendors={vendors} vendorsLoading={vendorsLoading} clients={clients} clientsLoading={clientsLoading} onClientAdded={handleClientAdded} />
+
+      {isElevatedRole(userRole) && <BudgetPanel getToken={getToken} />}
+
+      {isElevatedRole(userRole) && <ProgramMixPanel submissions={submissions} />}
 
       <div className="table-container">
         <div className="toolbar">
