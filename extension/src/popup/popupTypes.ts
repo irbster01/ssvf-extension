@@ -6,6 +6,29 @@ export interface NetSuiteVendor {
   companyName: string;
 }
 
+export interface ClientRecord {
+  id: string;
+  clientName: string;
+  provider?: string;
+  program?: string;
+  region?: string;
+}
+
+export interface ReceiptAnalysisResult {
+  success: boolean;
+  message?: string;
+  vendorName?: string | null;
+  amount?: number | null;
+  date?: string | null;
+  assistanceType?: string | null;
+  description?: string | null;
+  confidence: {
+    vendorName?: number;
+    amount?: number;
+    date?: number;
+  };
+}
+
 export interface CaptureLog {
   timestamp: string;
   status: 'success' | 'error';

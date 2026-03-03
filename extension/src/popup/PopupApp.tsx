@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { signIn, signOut, getCurrentAccount, silentTokenRefresh, getValidToken } from '../auth/authService';
 import { API_URL, SWA_URL } from '../config';
-import { NetSuiteVendor, Stats, Submission, ThreadMessage, TabType } from './popupTypes';
+import { NetSuiteVendor, ClientRecord, Stats, Submission, ThreadMessage, TabType } from './popupTypes';
 import { popupStyles as styles } from './popupStyles';
 import ManualTFATab from './ManualTFATab';
 import PopupMessageThread from './PopupMessageThread';
@@ -36,6 +36,10 @@ export const PopupApp: React.FC = () => {
   // Vendor list state (shared with ManualTFATab)
   const [vendors, setVendors] = useState<NetSuiteVendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState(false);
+
+  // Client list state (shared with ManualTFATab)
+  const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -115,6 +119,31 @@ export const PopupApp: React.FC = () => {
       }
     };
     fetchVendors();
+  }, [isAuthenticated]);
+
+  // Fetch client list when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const fetchClients = async () => {
+      setClientsLoading(true);
+      try {
+        const token = await getValidToken();
+        if (!token) return;
+        const clientsUrl = API_URL.replace('/captures', '/clients');
+        const response = await fetch(clientsUrl, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setClients(data.clients || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch clients:', err);
+      } finally {
+        setClientsLoading(false);
+      }
+    };
+    fetchClients();
   }, [isAuthenticated]);
 
   const handleAuthenticate = async () => {
@@ -205,7 +234,9 @@ export const PopupApp: React.FC = () => {
       }
 
       const data = await response.json();
-      setSubmissions(data.slice(0, 20)); // Show last 20
+      // API returns { submissions: [...], role } or raw array
+      const list = Array.isArray(data) ? data : (data.submissions || []);
+      setSubmissions(list.slice(0, 50));
 
       // Also fetch unread counts
       try {
@@ -600,6 +631,8 @@ export const PopupApp: React.FC = () => {
             isAuthenticated={isAuthenticated}
             vendors={vendors}
             vendorsLoading={vendorsLoading}
+            clients={clients}
+            clientsLoading={clientsLoading}
             stats={stats}
             onStatsUpdate={setStats}
             onAuthExpired={handleAuthExpired}
