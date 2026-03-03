@@ -22,7 +22,6 @@ export const PopupApp: React.FC = () => {
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [submissionsError, setSubmissionsError] = useState<string | null>(null);
   const [togglingEnteredId, setTogglingEnteredId] = useState<string | null>(null);
-  const [captureEnabled, setCaptureEnabled] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showAuthWarning, setShowAuthWarning] = useState(false);
 
@@ -77,12 +76,10 @@ export const PopupApp: React.FC = () => {
     
     checkAuthentication();
 
-    chrome.storage.local.get(['captureStats', 'captureEnabled'], (result) => {
+    chrome.storage.local.get(['captureStats'], (result) => {
       if (result.captureStats) {
         setStats(result.captureStats);
       }
-      // Default to false (Off) if not set
-      setCaptureEnabled(result.captureEnabled === true);
     });
 
     const handleMessage = (message: any) => {
@@ -385,13 +382,28 @@ export const PopupApp: React.FC = () => {
       {/* Tabs */}
       <div style={styles.tabs}>
         <button style={styles.tab(activeTab === 'activity')} onClick={() => setActiveTab('activity')}>
-          Activity
+          Messages
+          {Object.values(unreadCounts).reduce((a, b) => a + b, 0) > 0 && (
+            <span style={{
+              backgroundColor: '#dc3545', color: 'white', borderRadius: '10px',
+              padding: '0 6px', fontSize: '10px', fontWeight: 700, marginLeft: '5px',
+            }}>{Object.values(unreadCounts).reduce((a, b) => a + b, 0)}</span>
+          )}
         </button>
         <button style={styles.tab(activeTab === 'manual')} onClick={() => setActiveTab('manual')}>
-          Manual
+          Submit
         </button>
         <button style={styles.tab(activeTab === 'submissions')} onClick={() => setActiveTab('submissions')}>
           Queue
+          {(() => {
+            const pendingCount = submissions.filter(s => !s.entered_in_system).length;
+            return pendingCount > 0 ? (
+              <span style={{
+                backgroundColor: '#f59e0b', color: 'white', borderRadius: '10px',
+                padding: '0 6px', fontSize: '10px', fontWeight: 700, marginLeft: '5px',
+              }}>{pendingCount}</span>
+            ) : null;
+          })()}
         </button>
       </div>
 
@@ -475,58 +487,6 @@ export const PopupApp: React.FC = () => {
         {/* Activity Tab */}
         {activeTab === 'activity' && (
           <>
-            {/* Auto-Capture Toggle */}
-            <div style={{
-              ...styles.card,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 16px',
-            }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>Auto-Capture</div>
-                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                  {captureEnabled ? 'TFA capture on Save & Exit is active' : 'TFA auto-capture is off'}
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  const newVal = !captureEnabled;
-                  setCaptureEnabled(newVal);
-                  chrome.storage.local.set({ captureEnabled: newVal });
-                }}
-                style={{
-                  position: 'relative',
-                  width: '44px',
-                  height: '24px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: captureEnabled
-                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                    : '#d1d5db',
-                  transition: 'background 0.3s',
-                  flexShrink: 0,
-                  padding: 0,
-                }}
-                aria-label={captureEnabled ? 'Disable auto-capture' : 'Enable auto-capture'}
-              >
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    left: captureEnabled ? '22px' : '2px',
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    background: 'white',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                    transition: 'left 0.3s',
-                  }}
-                />
-              </button>
-            </div>
-
             {/* Messages */}
             <div style={styles.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -646,15 +606,26 @@ export const PopupApp: React.FC = () => {
           />
         )}
 
-        {/* Submissions Tab (Queue) */}
+        {/* Submissions Tab (Queue) — only shows TFAs NOT entered in system */}
         {activeTab === 'submissions' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>TFA Queue</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>ServicePoint Queue</span>
+                {(() => {
+                  const pending = submissions.filter(s => !s.entered_in_system).length;
+                  return pending > 0 ? (
+                    <span style={{
+                      backgroundColor: '#f59e0b', color: 'white', borderRadius: '10px',
+                      padding: '1px 7px', fontSize: '11px', fontWeight: 700,
+                    }}>{pending} pending</span>
+                  ) : null;
+                })()}
+              </div>
               <button
                 onClick={fetchSubmissions}
                 disabled={loadingSubmissions || !isAuthenticated}
-                style={{ fontSize: '11px', color: '#667eea', background: 'none', border: 'none', cursor: 'pointer' }}
+                style={{ fontSize: '11px', color: '#667eea', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
               >
                 {loadingSubmissions ? 'Loading...' : 'Refresh'}
               </button>
@@ -666,222 +637,100 @@ export const PopupApp: React.FC = () => {
 
             {!isAuthenticated ? (
               <div style={{ ...styles.card, textAlign: 'center', padding: '20px' }}>
-                <div style={{ fontSize: '12px', color: '#6b7280' }}>Sign in to view submissions</div>
+                <div style={{ fontSize: '12px', color: '#6b7280' }}>Sign in to view queue</div>
               </div>
             ) : loadingSubmissions ? (
               <div style={{ ...styles.card, textAlign: 'center', padding: '20px' }}>
                 <div style={{ fontSize: '12px', color: '#6b7280' }}>Loading...</div>
               </div>
-            ) : submissions.length === 0 ? (
+            ) : submissions.filter(s => !s.entered_in_system).length === 0 ? (
               <div style={{ ...styles.card, textAlign: 'center', padding: '20px' }}>
-                <div style={{ fontSize: '12px', color: '#6b7280' }}>No submissions yet</div>
+                <div style={{ fontSize: '20px', marginBottom: '6px' }}>✓</div>
+                <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: 500 }}>All TFAs entered in system</div>
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>Nothing to do right now</div>
               </div>
             ) : (
-              <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
-                {submissions.map((sub) => {
+              <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
+                {/* Table header */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 100px 70px 36px',
+                  gap: '4px', padding: '6px 10px',
+                  fontSize: '9px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' as const,
+                  letterSpacing: '0.05em', borderBottom: '1px solid #e5e7eb',
+                }}>
+                  <span>Client / Vendor</span>
+                  <span>Type</span>
+                  <span style={{ textAlign: 'right' }}>Amount</span>
+                  <span></span>
+                </div>
+
+                {submissions.filter(s => !s.entered_in_system).map(sub => {
                   const assistanceType = sub.form_data?.assistance_type || '—';
-                  const region = sub.region || sub.form_data?.region || '—';
-                  const programCategory = sub.program_category || sub.form_data?.program_category || '—';
-                  const dateStr = formatTime(sub.captured_at_utc);
-                  const hasUnread = (unreadCounts[sub.id] || 0) > 0;
-                  const isExpanded = expandedMessagesSub === sub.id;
                   return (
                     <div
                       key={sub.id}
                       style={{
-                        ...styles.card,
-                        padding: '10px 12px',
-                        marginBottom: '8px',
-                        border: hasUnread ? '1px solid #dc3545' : undefined,
+                        display: 'grid', gridTemplateColumns: '1fr 100px 70px 36px',
+                        gap: '4px', alignItems: 'center',
+                        padding: '8px 10px',
+                        borderBottom: '1px solid #f3f4f6',
+                        transition: 'background 0.15s',
                       }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
-                      {/* Clickable card body — opens dashboard */}
-                      <div
-                        onClick={async () => {
-                          const token = await getValidToken();
-                          const dashboardUrl = token 
-                            ? `${SWA_URL}#token=${encodeURIComponent(token)}`
-                            : SWA_URL;
-                          chrome.tabs.create({ url: dashboardUrl });
-                        }}
-                        style={{ cursor: 'pointer' }}
-                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
-                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                      >
-                      {/* Row 1: Client Name + Amount + Unread dot */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, overflow: 'hidden' }}>
-                          {hasUnread && (
-                            <span style={{
-                              width: 8, height: 8, borderRadius: '50%',
-                              backgroundColor: '#dc3545', flexShrink: 0,
-                            }} />
-                          )}
-                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {sub.client_name || sub.client_id || 'Unknown Client'}
-                          </span>
+                      {/* Client / Vendor */}
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {sub.client_name || sub.client_id || 'Unknown'}
                         </div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#059669', flexShrink: 0, marginLeft: '8px' }}>
-                          {sub.service_amount != null ? `$${sub.service_amount.toFixed(2)}` : '—'}
+                        <div style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {sub.vendor || 'No vendor'}
                         </div>
                       </div>
-                      {/* Row 2: Vendor */}
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {sub.vendor || 'No vendor'}
+                      {/* Type */}
+                      <div style={{
+                        fontSize: '9px', fontWeight: 600, padding: '2px 6px',
+                        borderRadius: '10px', backgroundColor: '#eef2ff', color: '#4338ca',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        textAlign: 'center',
+                      }}>
+                        {assistanceType}
                       </div>
-                      {/* Row 3: Region + Program Category */}
-                      <div style={{ display: 'flex', gap: '6px', marginBottom: '3px', flexWrap: 'wrap' }}>
-                        <div style={{
-                          fontSize: '9px',
-                          fontWeight: 600,
-                          padding: '1px 6px',
-                          borderRadius: '10px',
-                          backgroundColor: '#fef3c7',
-                          color: '#92400e',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {region}
-                        </div>
-                        <div style={{
-                          fontSize: '9px',
-                          fontWeight: 600,
-                          padding: '1px 6px',
-                          borderRadius: '10px',
-                          backgroundColor: programCategory === 'Rapid Rehousing' ? '#dbeafe' : '#d1fae5',
-                          color: programCategory === 'Rapid Rehousing' ? '#1e40af' : '#065f46',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {programCategory}
-                        </div>
+                      {/* Amount */}
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669', textAlign: 'right' }}>
+                        {sub.service_amount != null ? `$${sub.service_amount.toFixed(2)}` : '—'}
                       </div>
-                      {/* Row 4: Assistance Type + Date */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <div style={{
-                          fontSize: '10px',
-                          fontWeight: 600,
-                          padding: '2px 6px',
-                          borderRadius: '10px',
-                          backgroundColor: '#eef2ff',
-                          color: '#4338ca',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          maxWidth: '60%',
-                        }}>
-                          {assistanceType}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#9ca3af', flexShrink: 0 }}>
-                          {dateStr}
-                        </div>
-                      </div>
-                      {/* Row 5: Entered in System toggle */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          borderTop: '1px solid #f3f4f6',
-                          paddingTop: '6px',
-                        }}
-                      >
-                        <div style={{ fontSize: '10px', color: '#6b7280' }}>
-                          {sub.entered_in_system
-                            ? `Entered by ${sub.entered_in_system_by || 'someone'}`
-                            : 'Not yet entered in system'}
-                        </div>
+                      {/* Check off */}
+                      <div style={{ textAlign: 'center' }}>
                         <button
                           onClick={(e) => handleToggleEntered(sub, e)}
                           disabled={togglingEnteredId === sub.id}
-                          title={sub.entered_in_system ? 'Mark as NOT entered' : 'Mark as entered in ServicePoint / LSNDC'}
+                          title="Mark as entered in ServicePoint"
                           style={{
-                            background: sub.entered_in_system
-                              ? 'linear-gradient(135deg, #10b981, #059669)'
-                              : '#e5e7eb',
-                            color: sub.entered_in_system ? 'white' : '#6b7280',
-                            border: 'none',
-                            borderRadius: '12px',
-                            padding: '3px 10px',
-                            fontSize: '10px',
-                            fontWeight: 600,
+                            width: '22px', height: '22px',
+                            borderRadius: '4px',
+                            border: '2px solid #d1d5db',
+                            background: 'white',
                             cursor: togglingEnteredId === sub.id ? 'wait' : 'pointer',
-                            opacity: togglingEnteredId === sub.id ? 0.6 : 1,
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          {sub.entered_in_system ? '✓ Entered' : 'Mark Entered'}
-                        </button>
-                      </div>
-                      </div>{/* end clickable card body */}
-
-                      {/* Row 6: Messages toggle */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          borderTop: '1px solid #f3f4f6',
-                          paddingTop: '6px',
-                          marginTop: '6px',
-                        }}
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isExpanded) {
-                              setExpandedMessagesSub(null);
-                              setThreadMessages([]);
-                            } else {
-                              setExpandedMessagesSub(sub.id);
-                              fetchThreadMessages(sub.id);
-                            }
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            fontSize: '10px',
-                            color: '#667eea',
-                            cursor: 'pointer',
-                            fontWeight: 600,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '12px', color: '#d1d5db',
+                            transition: 'all 0.15s',
+                            opacity: togglingEnteredId === sub.id ? 0.5 : 1,
                             padding: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
                           }}
-                        >
-                          💬 {isExpanded ? 'Hide Messages' : 'Messages'}
-                          {hasUnread && (
-                            <span style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              borderRadius: '8px',
-                              padding: '0 5px',
-                              fontSize: '9px',
-                              fontWeight: 700,
-                            }}>
-                              {unreadCounts[sub.id]}
-                            </span>
-                          )}
-                        </button>
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor = '#10b981';
+                            e.currentTarget.style.color = '#10b981';
+                            e.currentTarget.textContent = '✓';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = '#d1d5db';
+                            e.currentTarget.style.color = '#d1d5db';
+                            e.currentTarget.textContent = '';
+                          }}
+                        />
                       </div>
-
-                      {/* Expanded message thread */}
-                      {isExpanded && (
-                        <div style={{
-                          borderTop: '1px solid #e5e7eb',
-                          marginTop: '6px',
-                          paddingTop: '6px',
-                        }}>
-                          <PopupMessageThread
-                            messages={threadMessages}
-                            loading={threadLoading}
-                            replyText={replyText}
-                            onReplyTextChange={setReplyText}
-                            onSendReply={() => handleSendReply(sub.id, sub.service_type || 'TFA')}
-                            sendingReply={sendingReply}
-                            currentUserEmail={userEmail}
-                          />
-                        </div>
-                      )}
                     </div>
                   );
                 })}
