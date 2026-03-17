@@ -7,6 +7,7 @@ import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { sendNotifyEmail, buildNewSubmissionEmail } from '../shared/graphClient';
 import { validateAuthWithRole } from '../shared/rbac';
+import { getCorsHeaders as _getCors } from '../shared/cors';
 
 const MAX_PAYLOAD_SIZE = 1024 * 1024; // 1MB limit
 
@@ -16,22 +17,9 @@ export async function CaptureIngest(
 ): Promise<HttpResponseInit> {
   const requestStart = Date.now();
   
-  // CORS headers - RESTRICTED to specific origin only
+  // CORS headers
   const origin = request.headers.get('origin') || '';
-  const allowedOrigins = [
-    'https://wscs.wellsky.com',
-    'https://wonderful-sand-00129870f.1.azurestaticapps.net',
-    'https://ssvf.northla.app',
-    'http://localhost:4280',
-    'http://localhost:5173',
-  ];
-  
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  const corsHeaders = _getCors(origin, 'POST, OPTIONS');
 
   // Handle preflight OPTIONS request
   if (request.method === 'OPTIONS') {

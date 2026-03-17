@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getClientsContainer } from '../shared/cosmosClient';
 import { validateAuthWithRole, AuthResult } from '../shared/rbac';
+import { getCorsHeaders } from '../shared/cors';
 
 export interface ClientRecord {
   id: string;          // Wellsky Client ID (also partition key)
@@ -17,9 +18,12 @@ export interface ClientRecord {
  * The dataset is small (~2500) so we return everything and filter client-side.
  */
 async function getClients(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  const origin = request.headers.get('origin') || '';
+  const corsHeaders = getCorsHeaders(origin, 'GET, POST, OPTIONS');
+
   const auth = await validateAuthWithRole(request, context);
   if (!auth.valid) {
-    return { status: 401, jsonBody: { error: 'Unauthorized' } };
+    return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
   try {
@@ -31,10 +35,11 @@ async function getClients(request: HttpRequest, context: InvocationContext): Pro
     return {
       status: 200,
       jsonBody: { clients: resources },
+      headers: corsHeaders,
     };
   } catch (err: any) {
     context.error('Failed to fetch clients:', err);
-    return { status: 500, jsonBody: { error: 'Failed to fetch clients' } };
+    return { status: 500, jsonBody: { error: 'Failed to fetch clients' }, headers: corsHeaders };
   }
 }
 
@@ -44,9 +49,12 @@ async function getClients(request: HttpRequest, context: InvocationContext): Pro
  * If the client ID already exists, updates the name.
  */
 async function addClient(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
+  const origin = request.headers.get('origin') || '';
+  const corsHeaders = getCorsHeaders(origin, 'GET, POST, OPTIONS');
+
   const auth = await validateAuthWithRole(request, context);
   if (!auth.valid) {
-    return { status: 401, jsonBody: { error: 'Unauthorized' } };
+    return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
   try {
@@ -88,22 +96,23 @@ async function addClient(request: HttpRequest, context: InvocationContext): Prom
     return {
       status: 200,
       jsonBody: record,
+      headers: corsHeaders,
     };
   } catch (err: any) {
     context.error('Failed to add client:', err);
-    return { status: 500, jsonBody: { error: 'Failed to add client' } };
+    return { status: 500, jsonBody: { error: 'Failed to add client' }, headers: corsHeaders };
   }
 }
 
 app.http('GetClients', {
-  methods: ['GET'],
+  methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
   route: 'clients',
   handler: getClients,
 });
 
 app.http('AddClient', {
-  methods: ['POST'],
+  methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   route: 'clients',
   handler: addClient,

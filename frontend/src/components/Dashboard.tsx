@@ -56,6 +56,7 @@ function Dashboard() {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('user');
 
@@ -166,6 +167,12 @@ function Dashboard() {
   useEffect(() => {
     loadSubmissions();
   }, [loadSubmissions]);
+
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Fetch NetSuite vendor list once on mount
   useEffect(() => {
@@ -442,8 +449,8 @@ function Dashboard() {
       to.setHours(23, 59, 59, 999);
       if (captured > to) return false;
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       const haystack = [s.client_name, s.client_id, s.vendor, s.po_number]
         .filter(Boolean).join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;

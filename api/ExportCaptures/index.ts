@@ -1,6 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryCaptures, QueryOptions } from '../shared/cosmosClient';
 import { validateAuthWithRole, isElevated } from '../shared/rbac';
+import { getCorsHeaders as _getCors } from '../shared/cors';
+import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
 
 /**
  * Export captures for accounting/reporting
@@ -14,20 +16,7 @@ export async function ExportCaptures(
 ): Promise<HttpResponseInit> {
   // CORS headers
   const origin = request.headers.get('origin') || '';
-  const allowedOrigins = [
-    'https://wscs.wellsky.com',
-    'https://ssvf.northla.app',
-    'https://wonderful-sand-00129870f.1.azurestaticapps.net',
-    'http://localhost:5173',
-    'http://localhost:4280',
-  ];
-  
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  const corsHeaders = _getCors(origin, 'GET, OPTIONS');
 
   if (request.method === 'OPTIONS') {
     return { status: 204, headers: corsHeaders };
@@ -53,6 +42,15 @@ export async function ExportCaptures(
     };
 
     const captures = await queryCaptures(queryOptions);
+
+    logAuditEvent(context, {
+      ...createBaseAuditEvent(request, 'ExportCaptures'),
+      event: 'EXPORT_REQUESTED',
+      userId: auth.userId,
+      email: auth.email,
+      success: true,
+      details: { count: captures.length, format: url.searchParams.get('format') || 'json' },
+    });
 
     // Check if CSV format requested
     const format = url.searchParams.get('format');

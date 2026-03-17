@@ -699,6 +699,11 @@ export const PopupApp: React.FC = () => {
 
                 {submissions.filter(s => !s.entered_in_system).map(sub => {
                   const assistanceType = sub.form_data?.assistance_type || '—';
+                  const tfaDateStr = sub.tfa_date || sub.captured_at_utc;
+                  const tfaDateFmt = (() => {
+                    const d = new Date(tfaDateStr);
+                    return isNaN(d.getTime()) ? '—' : `${d.getMonth() + 1}/${d.getDate()}`;
+                  })();
                   return (
                     <div
                       key={sub.id}
@@ -712,10 +717,15 @@ export const PopupApp: React.FC = () => {
                       onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
-                      {/* Client / Vendor */}
+                      {/* Client / Vendor + Date */}
                       <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {sub.client_name || sub.client_id || 'Unknown'}
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '1 1 0' }}>
+                            {sub.client_name || sub.client_id || 'Unknown'}
+                          </span>
+                          <span style={{ fontSize: '10px', fontWeight: 600, color: '#6366f1', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {tfaDateFmt}
+                          </span>
                         </div>
                         <div style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {sub.vendor || 'No vendor'}

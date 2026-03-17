@@ -169,16 +169,16 @@ header h1 {
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 14px 20px;
   background: #fafafa;
   border-bottom: 1px solid #e0e0e0;
-  gap: 6px;
+  gap: 12px;
 }
 
 .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
@@ -200,15 +200,15 @@ header h1 {
 .filter-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .filter-row select,
 .filter-row input {
-  padding: 5px 8px;
+  padding: 7px 10px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.82rem;
   background: white;
   color: #333;
@@ -220,13 +220,13 @@ header h1 {
 }
 
 .date-input {
-  padding: 5px 8px;
+  padding: 7px 10px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.82rem;
   color: #333;
   background: white;
-  max-width: 130px;
+  max-width: 140px;
 }
 
 .date-input:focus {
@@ -450,23 +450,148 @@ select.status {
   color: #2e7d32;
 }
 
+/* ========== Status tooltips ========== */
+.status-tooltip-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.status-tooltip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  pointer-events: none;
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+.status-tooltip-bottom {
+  top: calc(100% + 6px);
+}
+
+.status-tooltip-top {
+  bottom: calc(100% + 6px);
+}
+
+/* Arrow */
+.status-tooltip-bottom::before,
+.status-tooltip-top::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+}
+
+.status-tooltip-bottom::before {
+  top: -12px;
+}
+
+.status-tooltip-top::after {
+  bottom: -12px;
+}
+
+/* Color variants */
+.status-tooltip-new {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border: 1px solid #90caf9;
+}
+.status-tooltip-new.status-tooltip-bottom::before {
+  border-bottom-color: #90caf9;
+}
+.status-tooltip-new.status-tooltip-top::after {
+  border-top-color: #90caf9;
+}
+
+.status-tooltip-corrections {
+  background: #fff3e0;
+  color: #bf360c;
+  border: 1px solid #ffcc80;
+}
+.status-tooltip-corrections.status-tooltip-bottom::before {
+  border-bottom-color: #ffcc80;
+}
+.status-tooltip-corrections.status-tooltip-top::after {
+  border-top-color: #ffcc80;
+}
+
+.status-tooltip-in-review {
+  background: #f3e5f5;
+  color: #4a148c;
+  border: 1px solid #ce93d8;
+}
+.status-tooltip-in-review.status-tooltip-bottom::before {
+  border-bottom-color: #ce93d8;
+}
+.status-tooltip-in-review.status-tooltip-top::after {
+  border-top-color: #ce93d8;
+}
+
+.status-tooltip-submitted {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #a5d6a7;
+}
+.status-tooltip-submitted.status-tooltip-bottom::before {
+  border-bottom-color: #a5d6a7;
+}
+.status-tooltip-submitted.status-tooltip-top::after {
+  border-top-color: #a5d6a7;
+}
+
+.status-tooltip-header {
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.status-tooltip-line {
+  margin-top: 2px;
+}
+
+.status-tooltip-line:first-of-type {
+  font-weight: 500;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 /* ========== Status filter pills ========== */
 .status-pills {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   width: 100%;
+  padding-bottom: 4px;
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
+  gap: 6px;
+  padding: 6px 14px;
   border-radius: 20px;
   border: 1.5px solid #ddd;
   background: #fff;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
@@ -531,12 +656,12 @@ select.status {
 
 /* ========== Search input ========== */
 .search-input {
-  padding: 5px 10px;
+  padding: 7px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.82rem;
-  min-width: 180px;
-  max-width: 240px;
+  min-width: 200px;
+  max-width: 260px;
 }
 
 .search-input:focus {

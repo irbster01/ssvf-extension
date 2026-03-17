@@ -1,4 +1,5 @@
 import { Submission, SubmissionStatus, UserRole, isElevatedRole } from '../types';
+import StatusTooltip from './StatusTooltip';
 
 interface SubmissionCardProps {
   submission: Submission;
@@ -38,23 +39,25 @@ function SubmissionCard({
       role="listitem"
     >
       <div className="mobile-card-top">
-        {elevated ? (
-          <select
-            className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
-            value={submission.status}
-            onChange={e => onStatusChange(submission, e.target.value as SubmissionStatus)}
-            disabled={isDead}
-            aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
-          >
-            {statusOptions.map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-        ) : (
-          <span className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`} style={{ fontWeight: 600 }}>
-            {submission.status || 'New'}
-          </span>
-        )}
+        <StatusTooltip submission={submission}>
+          {elevated ? (
+            <select
+              className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`}
+              value={submission.status}
+              onChange={e => onStatusChange(submission, e.target.value as SubmissionStatus)}
+              disabled={isDead}
+              aria-label={`Status for ${submission.client_name || submission.client_id || 'submission'}`}
+            >
+              {statusOptions.map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          ) : (
+            <span className={`status status-${submission.status?.toLowerCase().replace(' ', '-')}`} style={{ fontWeight: 600 }}>
+              {submission.status || 'New'}
+            </span>
+          )}
+        </StatusTooltip>
         <span className="mobile-card-amount">{formatAmount(submission.service_amount)}</span>
       </div>
       <div className="mobile-card-client">

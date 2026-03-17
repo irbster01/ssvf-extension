@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { queryCaptures, ServiceCapture } from '../shared/cosmosClient';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { validateAuthWithRole, isElevated } from '../shared/rbac';
+import { getCorsHeaders as _getCors } from '../shared/cors';
 
 export async function ViewLogs(
   request: HttpRequest,
@@ -9,20 +10,9 @@ export async function ViewLogs(
 ): Promise<HttpResponseInit> {
   context.log('ViewLogs function processed a request.');
 
-  // CORS headers - RESTRICTED to specific origins only
+  // CORS headers
   const origin = request.headers.get('origin') || '';
-  const allowedOrigins = [
-    'https://ssvf-capture-api.azurewebsites.net',  // Azure Functions host
-    'https://wscs.wellsky.com',
-    'https://ssvf.northla.app',
-  ];
-  
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  const corsHeaders = _getCors(origin, 'GET, OPTIONS');
 
   // Handle preflight OPTIONS request
   if (request.method === 'OPTIONS') {

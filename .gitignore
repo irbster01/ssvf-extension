@@ -34,3 +34,6 @@ api/app-logs/
 
 # Extension build artifacts & store assets
 extension/screenshot-*.png
+
+# Test coverage
+coverage/

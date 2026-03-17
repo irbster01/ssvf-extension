@@ -7,10 +7,30 @@ const API_BASE = import.meta.env.PROD
 export interface SubmissionsResponse {
   submissions: Submission[];
   role: UserRole;
+  totalCount?: number;
+  offset?: number;
+  limit?: number;
+  hasMore?: boolean;
 }
 
-export async function fetchSubmissions(token: string): Promise<SubmissionsResponse> {
-  const response = await fetch(`${API_BASE}/submissions`, {
+export interface FetchSubmissionsOptions {
+  limit?: number;
+  offset?: number;
+  startDate?: string;
+  endDate?: string;
+  serviceType?: string;
+}
+
+export async function fetchSubmissions(token: string, options: FetchSubmissionsOptions = {}): Promise<SubmissionsResponse> {
+  const params = new URLSearchParams();
+  if (options.limit) params.set('limit', String(options.limit));
+  if (options.offset) params.set('offset', String(options.offset));
+  if (options.startDate) params.set('startDate', options.startDate);
+  if (options.endDate) params.set('endDate', options.endDate);
+  if (options.serviceType) params.set('serviceType', options.serviceType);
+  const qs = params.toString();
+
+  const response = await fetch(`${API_BASE}/submissions${qs ? `?${qs}` : ''}`, {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -27,7 +47,14 @@ export async function fetchSubmissions(token: string): Promise<SubmissionsRespon
   if (Array.isArray(data)) {
     return { submissions: data, role: 'user' };
   }
-  return { submissions: data.submissions || [], role: data.role || 'user' };
+  return {
+    submissions: data.submissions || [],
+    role: data.role || 'user',
+    totalCount: data.totalCount,
+    offset: data.offset,
+    limit: data.limit,
+    hasMore: data.hasMore,
+  };
 }
 
 export async function updateSubmission(
@@ -108,7 +135,17 @@ export interface ReceiptAnalysisResult {
   amount?: number | null;
   date?: string | null;        // YYYY-MM-DD
   assistanceType?: string | null;
+  region?: string | null;
+  vendorAddress?: string | null;
   description?: string | null;
+  clientMatch?: {
+    clientId: string;
+    clientName: string;
+    program?: string;
+    region?: string;
+    confidence: number;
+    matchType: string;  // 'exact' | 'reversed' | 'tokens'
+  } | null;
   confidence: {
     vendorName?: number;
     amount?: number;

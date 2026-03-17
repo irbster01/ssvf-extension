@@ -457,56 +457,116 @@ export async function createPurchaseOrder(
 }
 
 // ============ FILE CABINET / ATTACHMENT FUNCTIONS ============
+// Uses the SOAP SuiteTalk API because the REST Record API does not expose
+// the "file" and "folder" record types by default. The SOAP API has full
+// support for File Cabinet operations with the same TBA credentials.
 
 /**
- * Find or create a folder in NetSuite's File Cabinet for SSVF TFA attachments.
- * Caches the folder ID for the lifetime of the function app instance.
+ * Build the SOAP TokenPassport element with HMAC-SHA256 signature.
+ * Signature base string = accountId&consumerKey&tokenId&nonce&timestamp
+ * Signing key = consumerSecret&tokenSecret
  */
-let tfaFolderIdCache: string | null = null;
+function buildTokenPassport(config: NetSuiteConfig): string {
+  const nonce = crypto.randomBytes(20).toString('hex');
+  const timestamp = Math.floor(Date.now() / 1000).toString();
 
-export async function ensureTFAFolder(): Promise<string> {
-  if (tfaFolderIdCache) return tfaFolderIdCache;
+  const baseString = `${config.accountId}&${config.consumerKey}&${config.tokenId}&${nonce}&${timestamp}`;
+  const signingKey = `${config.consumerSecret}&${config.tokenSecret}`;
+  const signature = crypto.createHmac('sha256', signingKey).update(baseString).digest('base64');
 
-  // Try to find existing folder via SuiteQL
-  try {
-    const result = await suiteQL(
-      `SELECT id FROM mediaitemfolder WHERE name = 'SSVF TFA Attachments'`,
-      1,
-    );
-    if (result.items.length > 0) {
-      tfaFolderIdCache = String(result.items[0].id);
-      return tfaFolderIdCache;
-    }
-  } catch (err) {
-    console.warn('[ensureTFAFolder] SuiteQL lookup failed, will create folder:', err);
-  }
-
-  // Folder doesn't exist — create it
-  const createResult = await netsuiteRequest('POST', '/record/v1/folder', {
-    name: 'SSVF TFA Attachments',
-  });
-
-  if (createResult.status === 204 || createResult.status === 200 || createResult.status === 201) {
-    // Extract folder ID from Location header
-    let folderId: string | undefined;
-    if (createResult.location) {
-      const match = createResult.location.match(/\/folder\/(\d+)/i);
-      if (match) folderId = match[1];
-    }
-    if (!folderId && createResult.data?.id) {
-      folderId = String(createResult.data.id);
-    }
-    if (folderId) {
-      tfaFolderIdCache = folderId;
-      return tfaFolderIdCache;
-    }
-  }
-
-  throw new Error(`Failed to create SSVF TFA Attachments folder: ${createResult.status}`);
+  return `
+    <platformMsgs:tokenPassport>
+      <platformCore:account>${config.accountId}</platformCore:account>
+      <platformCore:consumerKey>${config.consumerKey}</platformCore:consumerKey>
+      <platformCore:token>${config.tokenId}</platformCore:token>
+      <platformCore:nonce>${nonce}</platformCore:nonce>
+      <platformCore:timestamp>${timestamp}</platformCore:timestamp>
+      <platformCore:signature algorithm="HMAC-SHA256">${signature}</platformCore:signature>
+    </platformMsgs:tokenPassport>`;
 }
 
 /**
- * Upload a file to the NetSuite File Cabinet.
+ * Get the SOAP endpoint URL for this NetSuite account.
+ */
+function getSoapUrl(accountId: string): string {
+  const urlAccountId = accountId.toLowerCase().replace(/_/g, '-');
+  return `https://${urlAccountId}.suitetalk.api.netsuite.com/services/NetSuitePort_2024_1`;
+}
+
+/**
+ * Execute a SOAP request against NetSuite SuiteTalk.
+ * Returns the raw response body as text.
+ */
+async function soapRequest(action: string, body: string): Promise<{ status: number; text: string }> {
+  const config = getConfig();
+  const url = getSoapUrl(config.accountId);
+  const tokenPassport = buildTokenPassport(config);
+
+  const envelope = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope
+  xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:platformMsgs="urn:messages_2024_1.platform.webservices.netsuite.com"
+  xmlns:platformCore="urn:core_2024_1.platform.webservices.netsuite.com"
+  xmlns:fileCab="urn:filecabinet_2024_1.documents.webservices.netsuite.com"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soapenv:Header>
+    ${tokenPassport}
+  </soapenv:Header>
+  <soapenv:Body>
+    ${body}
+  </soapenv:Body>
+</soapenv:Envelope>`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/xml; charset=UTF-8',
+      'SOAPAction': action,
+    },
+    body: envelope,
+  });
+
+  const text = await response.text();
+  return { status: response.status, text };
+}
+
+/**
+ * Extract a value between XML tags (simple parser — no external deps).
+ */
+function xmlValue(xml: string, tag: string): string | undefined {
+  // Handle namespaced tags: look for the tag with any namespace prefix
+  const patterns = [
+    new RegExp(`<(?:[a-zA-Z0-9]+:)?${tag}[^>]*>([^<]*)<\\/(?:[a-zA-Z0-9]+:)?${tag}>`, 'i'),
+    new RegExp(`<${tag}[^>]*>([^<]*)<\\/${tag}>`, 'i'),
+  ];
+  for (const p of patterns) {
+    const m = xml.match(p);
+    if (m) return m[1];
+  }
+  return undefined;
+}
+
+/**
+ * Extract an attribute value from an XML tag.
+ */
+function xmlAttr(xml: string, tag: string, attr: string): string | undefined {
+  const tagPattern = new RegExp(`<(?:[a-zA-Z0-9]+:)?${tag}[^>]*${attr}="([^"]*)"`, 'i');
+  const m = xml.match(tagPattern);
+  return m ? m[1] : undefined;
+}
+
+/**
+ * Get the File Cabinet folder ID used for SSVF TFA uploads.
+ * Uses the built-in "Attachments Received" folder (id=-10) which is always
+ * present in every NetSuite account. The folder is just internal plumbing —
+ * files appear under Communications → Files on the PO via the attach step.
+ */
+export async function ensureTFAFolder(): Promise<string> {
+  return '-10'; // NetSuite built-in "Attachments Received" folder
+}
+
+/**
+ * Upload a file to the NetSuite File Cabinet via SOAP.
  * Returns the internal file ID.
  */
 export async function uploadFileToNetSuite(
@@ -515,33 +575,89 @@ export async function uploadFileToNetSuite(
   folderId: string,
   description?: string,
 ): Promise<string> {
-  const result = await netsuiteRequest('POST', '/record/v1/file', {
-    name: fileName,
-    folder: { id: folderId },
-    content: base64Content,
-    ...(description ? { description } : {}),
-  });
+  // Determine file type for NetSuite based on extension
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const fileTypeMap: Record<string, string> = {
+    'pdf': '_PDF',
+    'png': '_PNGIMAGE',
+    'jpg': '_JPGIMAGE',
+    'jpeg': '_JPGIMAGE',
+    'gif': '_GIFIMAGE',
+    'txt': '_PLAINTEXT',
+    'csv': '_CSV',
+    'doc': '_WORD',
+    'docx': '_WORD',
+    'xls': '_EXCEL',
+    'xlsx': '_EXCEL',
+    'webp': '_WEBPIMAGE',
+  };
+  const fileType = fileTypeMap[ext] || '_PLAINTEXT';
 
-  if (result.status === 204 || result.status === 200 || result.status === 201) {
-    let fileId: string | undefined;
-    if (result.location) {
-      const match = result.location.match(/\/file\/(\d+)/i);
-      if (match) fileId = match[1];
+  // XML-escape the description
+  const safeDesc = (description || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const safeName = fileName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const addBody = `
+    <platformMsgs:add>
+      <platformMsgs:record xsi:type="fileCab:File">
+        <fileCab:name>${safeName}</fileCab:name>
+        <fileCab:fileType>${fileType}</fileCab:fileType>
+        <fileCab:content>${base64Content}</fileCab:content>
+        <fileCab:folder internalId="${folderId}" />
+        ${safeDesc ? `<fileCab:description>${safeDesc}</fileCab:description>` : ''}
+      </platformMsgs:record>
+    </platformMsgs:add>`;
+
+  const result = await soapRequest('add', addBody);
+
+  const isSuccess = result.text.includes('isSuccess="true"');
+  if (isSuccess) {
+    const fileId = xmlAttr(result.text, 'baseRef', 'internalId');
+    if (fileId) {
+      console.log(`[uploadFileToNetSuite] File uploaded: ${fileId} (${fileName})`);
+      return fileId;
     }
-    if (!fileId && result.data?.id) {
-      fileId = String(result.data.id);
-    }
-    if (fileId) return fileId;
   }
 
-  throw new Error(`Failed to upload file to NetSuite: ${result.status} ${JSON.stringify(result.data).substring(0, 300)}`);
+  const errorMsg = xmlValue(result.text, 'message') || result.text.substring(0, 500);
+  throw new Error(`Failed to upload file "${fileName}" to NetSuite: ${errorMsg}`);
 }
 
 /**
  * Attach a File Cabinet file to a Purchase Order record in NetSuite.
+ *
+ * Uses the SOAP SuiteTalk API "attach" operation which places files under the
+ * Communications tab → Files subtab. Falls back to the REST attach transform
+ * if SOAP is unavailable.
  */
 export async function attachFileToPO(fileId: string, poInternalId: string): Promise<void> {
-  const result = await netsuiteRequest(
+  // ── Primary: SOAP attach — guaranteed to work for file record type ──
+  console.log(`[attachFileToPO] Attaching file ${fileId} to PO ${poInternalId} via SOAP...`);
+
+  const attachBody = `
+    <platformMsgs:attach>
+      <platformMsgs:attachReference xsi:type="platformCore:AttachBasicReference">
+        <platformCore:attachTo xsi:type="platformCore:RecordRef" internalId="${poInternalId}" type="purchaseOrder" />
+        <platformCore:attachedRecord xsi:type="platformCore:RecordRef" internalId="${fileId}" type="file" />
+      </platformMsgs:attachReference>
+    </platformMsgs:attach>`;
+
+  const result = await soapRequest('attach', attachBody);
+  const isSuccess = result.text.includes('isSuccess="true"');
+
+  if (isSuccess) {
+    console.log(`[attachFileToPO] SOAP attach succeeded: file ${fileId} → PO ${poInternalId}`);
+    return;
+  }
+
+  // Log the SOAP error
+  const errorMsg = xmlValue(result.text, 'message') || result.text.substring(0, 500);
+  console.warn(`[attachFileToPO] SOAP attach failed: ${errorMsg}`);
+
+  // ── Fallback: REST attach transform (might work if file type is enabled) ──
+  console.log('[attachFileToPO] Trying REST fallback...');
+
+  const restResult = await netsuiteRequest(
     'POST',
     `/record/v1/purchaseOrder/${poInternalId}/!transform/attach`,
     {
@@ -552,10 +668,14 @@ export async function attachFileToPO(fileId: string, poInternalId: string): Prom
     },
   );
 
-  // Accept 204, 200, 201 as success
-  if (result.status !== 204 && result.status !== 200 && result.status !== 201) {
-    throw new Error(`Failed to attach file ${fileId} to PO ${poInternalId}: ${result.status} ${JSON.stringify(result.data).substring(0, 300)}`);
+  if (restResult.status === 204 || restResult.status === 200 || restResult.status === 201) {
+    console.log('[attachFileToPO] REST fallback succeeded');
+    return;
   }
+
+  throw new Error(
+    `Failed to attach file ${fileId} to PO ${poInternalId}: SOAP(${errorMsg}) REST(${restResult.status})`,
+  );
 }
 
 /**

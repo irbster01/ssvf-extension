@@ -1,34 +1,13 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { queryCaptures, updateCapture, getContainer, ServiceCapture } from '../shared/cosmosClient';
+import { queryCaptures, queryCapturesPaginated, updateCapture, getContainer, ServiceCapture } from '../shared/cosmosClient';
 import { validateEntraIdToken, isJwtToken } from '../shared/entraIdAuth';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { sendEmail, sendNotifyEmail, buildCorrectionNeededEmail, buildCorrectionCompletedEmail, NOTIFY_MAILBOX } from '../shared/graphClient';
 import { validateAuthWithRole, isElevated, AuthResult } from '../shared/rbac';
-
-// Allowed origins for the accounting dashboard
-const ALLOWED_ORIGINS = [
-  'https://ssvf-capture-api.azurewebsites.net',
-  'https://wscs.wellsky.com',
-  'https://wonderful-sand-00129870f.1.azurestaticapps.net',  // SWA dashboard
-  'https://ssvf.northla.app',  // SWA custom domain
-  'http://localhost:4280',  // Local dev
-  'http://localhost:5173',  // Vite dev
-];
-
-function isAllowedOrigin(origin: string): boolean {
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  // Allow Chrome extension popup origins
-  if (origin.startsWith('chrome-extension://')) return true;
-  return false;
-}
+import { getCorsHeaders as _getCors } from '../shared/cors';
 
 function getCorsHeaders(origin: string) {
-  return {
-    'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  return _getCors(origin, 'GET, PATCH, OPTIONS');
 }
 
 async function validateAuth(request: HttpRequest, context: InvocationContext): Promise<AuthResult> {
@@ -89,13 +68,24 @@ export async function GetSubmissions(
         userId = auth.email || auth.userId;
       }
       
-      const submissions = await queryCaptures({ startDate, endDate, serviceType, userId });
+      // Parse pagination params
+      const limit = Math.min(parseInt(request.query.get('limit') || '200', 10), 500);
+      const offset = parseInt(request.query.get('offset') || '0', 10);
+
+      const result = await queryCapturesPaginated({ startDate, endDate, serviceType, userId, limit, offset });
       
-      context.log(`Found ${submissions.length} submissions`);
+      context.log(`Found ${result.items.length} of ${result.totalCount} submissions`);
       
       return {
         status: 200,
-        jsonBody: { submissions, role: auth.role },
+        jsonBody: {
+          submissions: result.items,
+          role: auth.role,
+          totalCount: result.totalCount,
+          offset: result.offset,
+          limit: result.limit,
+          hasMore: result.hasMore,
+        },
         headers: corsHeaders,
       };
     }

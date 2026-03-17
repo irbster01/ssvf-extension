@@ -5,29 +5,11 @@ import { Message, MessagePayload } from '../shared/types';
 import { sendSignalRMessage } from '../SignalR';
 import { sendEmail, sendNotifyEmail, buildMessageNotificationEmail } from '../shared/graphClient';
 import { validateAuthWithRole, canAccessSubmission } from '../shared/rbac';
-
-const ALLOWED_ORIGINS = [
-  'https://ssvf-capture-api.azurewebsites.net',
-  'https://wscs.wellsky.com',
-  'https://wonderful-sand-00129870f.1.azurestaticapps.net',
-  'https://ssvf.northla.app',
-  'http://localhost:4280',
-  'http://localhost:5173',
-];
-
-function isAllowedOrigin(origin: string): boolean {
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  if (origin.startsWith('chrome-extension://')) return true;
-  return false;
-}
+import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
+import { getCorsHeaders as _getCors } from '../shared/cors';
 
 function getCorsHeaders(origin: string) {
-  return {
-    'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  return _getCors(origin, 'GET, POST, OPTIONS');
 }
 
 async function validateAuth(request: HttpRequest, context: InvocationContext) {
@@ -147,6 +129,15 @@ async function PostMessage(
     await container.items.create(message);
 
     context.log(`[Messages] Created message ${messageId} on submission ${submissionId} by ${senderEmail}`);
+
+    logAuditEvent(context, {
+      ...createBaseAuditEvent(request, 'PostMessage'),
+      event: 'MESSAGE_SENT',
+      userId: auth.userId,
+      email: senderEmail,
+      success: true,
+      details: { submissionId, messageId },
+    });
 
     // Look up the submission to find the caseworker's email and client info
     let recipientEmail: string | null = null;

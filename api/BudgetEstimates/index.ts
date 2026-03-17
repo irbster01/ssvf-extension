@@ -1,21 +1,10 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { suiteQL } from '../shared/netsuiteClient';
 import { validateAuthWithRole, isElevated } from '../shared/rbac';
-
-const ALLOWED_ORIGINS = [
-  'https://wonderful-sand-00129870f.1.azurestaticapps.net',
-  'https://ssvf.northla.app',
-  'http://localhost:4280',
-  'http://localhost:5173',
-];
+import { getCorsHeaders as _getCors } from '../shared/cors';
 
 function getCorsHeaders(origin: string) {
-  return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  return _getCors(origin, 'GET, OPTIONS');
 }
 
 /**

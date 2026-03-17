@@ -21,6 +21,8 @@ export interface ReceiptAnalysisResult {
   amount?: number | null;
   date?: string | null;
   assistanceType?: string | null;
+  region?: string | null;
+  vendorAddress?: string | null;
   description?: string | null;
   confidence: {
     vendorName?: number;
@@ -90,6 +92,7 @@ export interface Submission {
   service_type?: string;
   status?: 'New' | 'In Progress' | 'Complete';
   captured_at_utc: string;
+  tfa_date?: string;
   region?: string;
   program_category?: string;
   entered_in_system?: boolean;

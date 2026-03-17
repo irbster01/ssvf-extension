@@ -45,6 +45,7 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
   // AI receipt analysis state
   const [analyzing, setAnalyzing] = useState(false);
   const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
+  const [clientFilledFields, setClientFilledFields] = useState<Set<string>>(new Set());
   const [dragging, setDragging] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -120,13 +121,21 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
   const handleClientSelect = (client: ClientRecord) => {
     setSelectedClient(client);
     setClientSearch(client.clientName);
-    setManualForm(prev => ({
-      ...prev,
+    const filled = new Set<string>();
+    const updates: Partial<ManualTFAForm> = {
       clientId: client.id,
       clientName: client.clientName,
-      ...(client.region ? { region: client.region as SSVFRegion } : {}),
-      ...(client.program ? { programCategory: client.program as ProgramCategory } : {}),
-    }));
+    };
+    if (client.region) {
+      updates.region = client.region as SSVFRegion;
+      filled.add('region');
+    }
+    if (client.program) {
+      updates.programCategory = client.program as ProgramCategory;
+      filled.add('program');
+    }
+    setManualForm(prev => ({ ...prev, ...updates }));
+    setClientFilledFields(filled);
     setShowClientDropdown(false);
     setClientHighlight(-1);
   };
@@ -135,6 +144,7 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
     setSelectedClient(null);
     setClientSearch('');
     setManualForm(prev => ({ ...prev, clientId: '', clientName: '' }));
+    setClientFilledFields(new Set());
     clientInputRef.current?.focus();
   };
 
@@ -227,6 +237,12 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
         filled.add('assistanceType');
       }
 
+      // Region (inferred from vendor address)
+      if (result.region) {
+        setManualForm(prev => ({ ...prev, region: result.region as SSVFRegion }));
+        filled.add('region');
+      }
+
       setAiFilledFields(filled);
     } catch (err) {
       console.warn('[AnalyzeReceipt] Analysis failed:', err);
@@ -279,6 +295,7 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
     setSelectedClient(null);
     setClientSearch('');
     setAiFilledFields(new Set());
+    setClientFilledFields(new Set());
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -411,6 +428,16 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
     }}>AI</span>
   );
 
+  const ClientBadge: React.FC = () => (
+    <span style={{
+      display: 'inline-block', fontSize: '8px', fontWeight: 700,
+      padding: '1px 5px', borderRadius: '6px',
+      background: '#43a047',
+      color: 'white', marginLeft: '5px', verticalAlign: 'middle',
+      letterSpacing: '0.04em',
+    }}>AUTO</span>
+  );
+
   // --- Dropdown styles ---
   const dropdownStyle: React.CSSProperties = {
     position: 'absolute',
@@ -505,18 +532,33 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
         </div>
 
         {/* AI filled banner */}
-        {!analyzing && aiFilledFields.size > 0 && (
+        {!analyzing && (aiFilledFields.size > 0 || clientFilledFields.size > 0) && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '6px 10px', marginBottom: '12px',
             backgroundColor: '#fef3c7', borderRadius: '6px',
             fontSize: '11px', color: '#92400e',
           }}>
-            <span style={{
-              fontSize: '8px', fontWeight: 700, padding: '1px 5px', borderRadius: '6px',
-              background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white',
-            }}>AI</span>
-            Filled {aiFilledFields.size} field{aiFilledFields.size > 1 ? 's' : ''} — review below
+            {aiFilledFields.size > 0 && (
+              <>
+                <span style={{
+                  fontSize: '8px', fontWeight: 700, padding: '1px 5px', borderRadius: '6px',
+                  background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white',
+                }}>AI</span>
+                {aiFilledFields.size} field{aiFilledFields.size > 1 ? 's' : ''}
+              </>
+            )}
+            {aiFilledFields.size > 0 && clientFilledFields.size > 0 && <span>+</span>}
+            {clientFilledFields.size > 0 && (
+              <>
+                <span style={{
+                  fontSize: '8px', fontWeight: 700, padding: '1px 5px', borderRadius: '6px',
+                  background: '#43a047', color: 'white',
+                }}>AUTO</span>
+                {clientFilledFields.size} from client
+              </>
+            )}
+            <span style={{ marginLeft: '2px' }}>— review below</span>
           </div>
         )}
 
@@ -627,7 +669,11 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
         {/* Region + Program */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
           <div style={{ flex: 1 }}>
-            <label style={styles.label}>Region *</label>
+            <label style={styles.label}>
+              Region *
+              {aiFilledFields.has('region') && <AiBadge />}
+              {clientFilledFields.has('region') && !aiFilledFields.has('region') && <ClientBadge />}
+            </label>
             <select
               value={manualForm.region}
               onChange={(e) => setManualForm({ ...manualForm, region: e.target.value as SSVFRegion })}
@@ -640,7 +686,10 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
             </select>
           </div>
           <div style={{ flex: 1 }}>
-            <label style={styles.label}>Program *</label>
+            <label style={styles.label}>
+              Program *
+              {clientFilledFields.has('program') && <ClientBadge />}
+            </label>
             <select
               value={manualForm.programCategory}
               onChange={(e) => setManualForm({ ...manualForm, programCategory: e.target.value as ProgramCategory })}

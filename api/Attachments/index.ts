@@ -3,27 +3,11 @@ import { uploadAttachment, getAttachmentDownloadUrl, AttachmentMeta } from '../s
 import { getContainer, ServiceCapture } from '../shared/cosmosClient';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { validateAuthWithRole, canAccessSubmission, AuthResult } from '../shared/rbac';
-
-const ALLOWED_ORIGINS = [
-  'https://ssvf-capture-api.azurewebsites.net',
-  'https://wscs.wellsky.com',
-  'https://wonderful-sand-00129870f.1.azurestaticapps.net',
-  'https://ssvf.northla.app',
-  'http://localhost:4280',
-  'http://localhost:5173',
-];
-
-// Allow chrome extension origin
-const CHROME_EXTENSION_PATTERN = /^chrome-extension:\/\//;
+import { logAuditEvent, createBaseAuditEvent } from '../shared/auditLogger';
+import { getCorsHeaders as _getCors } from '../shared/cors';
 
 function getCorsHeaders(origin: string) {
-  const allowed = ALLOWED_ORIGINS.includes(origin) || CHROME_EXTENSION_PATTERN.test(origin);
-  return {
-    'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  return _getCors(origin, 'POST, GET, OPTIONS');
 }
 
 async function validateAuth(request: HttpRequest, context: InvocationContext) {
@@ -130,6 +114,15 @@ export async function UploadAttachment(
     });
 
     context.log(`✅ Attachment uploaded: ${attachment.blobName}`);
+
+    logAuditEvent(context, {
+      ...createBaseAuditEvent(request, 'UploadAttachment'),
+      event: 'ATTACHMENT_UPLOADED',
+      userId: auth.userId,
+      email: auth.email,
+      success: true,
+      details: { submissionId, fileName: body.fileName, size: buffer.length },
+    });
 
     return {
       status: 200,

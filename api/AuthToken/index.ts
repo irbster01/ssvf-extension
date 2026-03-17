@@ -32,12 +32,12 @@ export async function AuthToken(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
-  // CORS headers - RESTRICTED to specific origin
+  // AuthToken is legacy — only the WellSky content script uses it.
+  // Keep restricted to that single origin.
   const origin = request.headers.get('origin') || '';
-  const allowedOrigins = ['https://wscs.wellsky.com'];
-  
+  const allowed = origin === 'https://wscs.wellsky.com';
   const corsHeaders = {
-    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Origin': allowed ? origin : 'https://wscs.wellsky.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Credentials': 'true',

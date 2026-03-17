@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { PublicClientApplication, EventType } from '@azure/msal-browser';
 import { MsalProvider } from '@azure/msal-react';
 import App from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { msalConfig } from './auth/msalConfig';
 import './index.css';
 
@@ -45,7 +46,9 @@ msalInstance.initialize().then(async () => {
   root.render(
     <React.StrictMode>
       <MsalProvider instance={msalInstance}>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </MsalProvider>
     </React.StrictMode>
   );

@@ -124,7 +124,7 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
 
       const filled = new Set<string>();
 
-      // Vendor — try to match against loaded vendor list
+      // Vendor — try to match against loaded vendor list; only fill if a match is found
       if (result.vendorName && (result.confidence.vendorName ?? 0) > 0.5) {
         const name = result.vendorName;
         const exact = vendors.find(v => v.companyName.toLowerCase() === name.toLowerCase());
@@ -140,11 +140,10 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
           setSelectedVendor(match);
           setVendorSearch(match.companyName);
           setForm(prev => ({ ...prev, vendor: match.companyName, vendorId: match.id }));
-        } else {
-          setVendorSearch(name);
-          setForm(prev => ({ ...prev, vendor: name, vendorId: '' }));
+          filled.add('vendor');
         }
-        filled.add('vendor');
+        // If no match found in the NetSuite vendor list, leave the field empty
+        // so the user picks the correct vendor manually.
       }
 
       // Amount
@@ -163,6 +162,29 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
       if (result.assistanceType) {
         setForm(prev => ({ ...prev, assistanceType: result.assistanceType! }));
         filled.add('assistanceType');
+      }
+
+      // Client match (from OCR text matched against client database)
+      if (result.clientMatch && result.clientMatch.confidence >= 0.7) {
+        setForm(prev => ({
+          ...prev,
+          clientId: result.clientMatch!.clientId,
+          clientName: result.clientMatch!.clientName,
+          ...(result.clientMatch!.program ? { programCategory: result.clientMatch!.program } : {}),
+        }));
+        if (result.clientMatch.program) {
+          setClientSeedProgram(result.clientMatch.program);
+        }
+        filled.add('clientId');
+        filled.add('clientName');
+        if (result.clientMatch.program) filled.add('programCategory');
+      }
+
+      // Region — prefer client-seeded region over address inference
+      const inferredRegion = result.clientMatch?.region || result.region;
+      if (inferredRegion) {
+        setForm(prev => ({ ...prev, region: inferredRegion! }));
+        filled.add('region');
       }
 
       setAiFilledFields(filled);
@@ -480,7 +502,7 @@ export default function SubmitTFA({ getToken, onSubmitted, vendors, vendorsLoadi
             />
           </div>
           <div className="form-group" style={{ flex: 1 }}>
-            <label>Region *</label>
+            <label>Region * {aiFilledFields.has('region') && <span className="ai-badge">AI</span>}</label>
             <select
               value={form.region}
               onChange={e => set('region', e.target.value)}

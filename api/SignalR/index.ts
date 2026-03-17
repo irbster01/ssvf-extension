@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { validateAuthWithRole } from '../shared/rbac';
+import { getCorsHeaders as _getCors } from '../shared/cors';
 import jwt from 'jsonwebtoken';
 
 // SignalR Service REST API helpers
@@ -10,42 +11,28 @@ const SIGNALR_ENDPOINT = process.env.SIGNALR_ENDPOINT || '';
 const SIGNALR_ACCESS_KEY = process.env.SIGNALR_ACCESS_KEY || '';
 const SIGNALR_HUB = 'messages';
 
-const ALLOWED_ORIGINS = [
-  'https://ssvf-capture-api.azurewebsites.net',
-  'https://wscs.wellsky.com',
-  'https://wonderful-sand-00129870f.1.azurestaticapps.net',
-  'https://ssvf.northla.app',
-  'http://localhost:4280',
-  'http://localhost:5173',
-];
-
-function isAllowedOrigin(origin: string): boolean {
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  if (origin.startsWith('chrome-extension://')) return true;
-  return false;
-}
-
 function getCorsHeaders(origin: string) {
-  return {
-    'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+  return _getCors(origin, 'POST, OPTIONS');
 }
 
 /**
- * Generate a HMAC-SHA256 JWT for SignalR client access
+ * Generate a HMAC-SHA256 JWT for SignalR client access.
+ *
+ * Azure SignalR Serverless mode requires:
+ *  - aud: the client hub URL (no trailing slash before query)
+ *  - nameid: user identifier (used for user-targeted messages)
+ *  - exp/iat: standard JWT expiry claims
  */
 function generateSignalRToken(userId: string, expiryMinutes: number = 60): string {
   const audience = `${SIGNALR_ENDPOINT}/client/?hub=${SIGNALR_HUB}`;
   const now = Math.floor(Date.now() / 1000);
 
-  const payload = {
+  const payload: Record<string, any> = {
     aud: audience,
     iat: now,
     exp: now + expiryMinutes * 60,
     sub: userId,
+    nameid: userId,   // Azure SignalR requires 'nameid' for user identity
   };
 
   return jwt.sign(payload, SIGNALR_ACCESS_KEY, { algorithm: 'HS256' });
