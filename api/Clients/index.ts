@@ -112,7 +112,7 @@ app.http('GetClients', {
 });
 
 app.http('AddClient', {
-  methods: ['POST', 'OPTIONS'],
+  methods: ['POST'],
   authLevel: 'anonymous',
   route: 'clients',
   handler: addClient,
