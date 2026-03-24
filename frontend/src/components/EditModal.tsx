@@ -98,7 +98,7 @@ function EditModal({ submission, vendors, vendorsLoading, clients, clientsLoadin
     else if (e.key === 'Escape') { setShowDropdown(false); }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, resubmit = false) => {
     e.preventDefault();
     // Warn if program doesn't match seed data
     if (clientSeedProgram && programCategory !== clientSeedProgram) {
@@ -127,6 +127,10 @@ function EditModal({ submission, vendors, vendorsLoading, clients, clientsLoadin
         updates.entered_in_system = enteredInSystem;
         updates.entered_in_system_by = enteredInSystem ? (submission.entered_in_system_by || currentUsername || undefined) : undefined;
         updates.entered_in_system_at = enteredInSystem ? (submission.entered_in_system_at || new Date().toISOString()) : undefined;
+      }
+      // Caseworker resubmitting corrections → set status to In Review
+      if (resubmit && submission.status === 'Corrections') {
+        updates.status = 'In Review' as SubmissionStatus;
       }
       await onSave(updates);
 
@@ -412,6 +416,22 @@ function EditModal({ submission, vendors, vendorsLoading, clients, clientsLoadin
             <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
+            {submission.status === 'Corrections' && !elevated && (
+              <button
+                type="button"
+                className="btn"
+                onClick={(e) => handleSubmit(e, true)}
+                disabled={saving}
+                style={{
+                  backgroundColor: '#ea580c',
+                  color: 'white',
+                  border: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                {saving ? 'Saving...' : 'Save & Resubmit'}
+              </button>
+            )}
           </div>
         </form>
       </div>

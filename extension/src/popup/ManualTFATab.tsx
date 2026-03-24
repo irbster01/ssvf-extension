@@ -237,9 +237,30 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
         filled.add('assistanceType');
       }
 
-      // Region (inferred from vendor address)
-      if (result.region) {
-        setManualForm(prev => ({ ...prev, region: result.region as SSVFRegion }));
+      // Client match (from OCR text matched against client database)
+      if (result.clientMatch && result.clientMatch.confidence >= 0.7) {
+        const matched = clients.find(c => c.id === result.clientMatch!.clientId);
+        if (matched) {
+          setSelectedClient(matched);
+          setClientSearch(matched.clientName);
+        } else {
+          setClientSearch(result.clientMatch.clientName);
+        }
+        setManualForm(prev => ({
+          ...prev,
+          clientId: result.clientMatch!.clientId,
+          clientName: result.clientMatch!.clientName,
+          ...(result.clientMatch!.program ? { programCategory: result.clientMatch!.program as ProgramCategory } : {}),
+        }));
+        filled.add('clientId');
+        filled.add('clientName');
+        if (result.clientMatch!.program) filled.add('programCategory');
+      }
+
+      // Region — prefer client-seeded region over address inference
+      const inferredRegion = result.clientMatch?.region || result.region;
+      if (inferredRegion) {
+        setManualForm(prev => ({ ...prev, region: inferredRegion as SSVFRegion }));
         filled.add('region');
       }
 
@@ -249,7 +270,7 @@ const ManualTFATab: React.FC<ManualTFATabProps> = ({
     } finally {
       setAnalyzing(false);
     }
-  }, [vendors]);
+  }, [vendors, clients]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);

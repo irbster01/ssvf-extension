@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { CaretRight } from 'phosphor-react';
 import { fetchBudgetEstimates, BudgetSummary, BudgetLineItem } from '../api/submissions';
 
 interface Props {
@@ -83,9 +84,16 @@ function BudgetPanel({ getToken }: Props) {
 
   if (collapsed) {
     return (
-      <div className="budget-panel budget-panel-collapsed" onClick={() => setCollapsed(false)}>
-        <div className="budget-panel-header">
-          <h3>Budget Tracker</h3>
+      <div className="budget-panel budget-panel-collapsed">
+        <button
+          className="budget-header-toggle"
+          onClick={() => setCollapsed(false)}
+          aria-expanded={false}
+        >
+          <div className="budget-header-left">
+            <CaretRight className="budget-chevron" size={14} weight="bold" />
+            <h3>Budget Tracker</h3>
+          </div>
           {data && (
             <span className="budget-quick-stat">
               {formatCurrency(data.totals.totalSpent)} / {formatCurrency(data.totals.totalBudget)}
@@ -94,8 +102,7 @@ function BudgetPanel({ getToken }: Props) {
               </span>
             </span>
           )}
-          <button className="budget-expand-btn" title="Expand">&#9660;</button>
-        </div>
+        </button>
       </div>
     );
   }
@@ -105,11 +112,20 @@ function BudgetPanel({ getToken }: Props) {
 
   return (
     <div className="budget-panel">
-      <div className="budget-panel-header">
-        <h3>Budget Tracker</h3>
-        {data && (
-          <span className="budget-fy-label">{data.fiscalYear}</span>
-        )}
+      <button
+        className="budget-header-toggle"
+        onClick={() => setCollapsed(true)}
+        aria-expanded={true}
+      >
+        <div className="budget-header-left">
+          <CaretRight className="budget-chevron budget-chevron-open" size={14} weight="bold" />
+          <h3>Budget Tracker</h3>
+          {data && (
+            <span className="budget-fy-label">{data.fiscalYear}</span>
+          )}
+        </div>
+      </button>
+      <div className="budget-controls-bar">
         <div className="budget-controls">
           <select
             value={viewMode}
@@ -142,9 +158,6 @@ function BudgetPanel({ getToken }: Props) {
           </select>
           <button onClick={loadData} className="budget-refresh-btn" disabled={loading} title="Refresh">
             &#8635;
-          </button>
-          <button onClick={() => setCollapsed(true)} className="budget-collapse-btn" title="Collapse">
-            &#9650;
           </button>
         </div>
       </div>

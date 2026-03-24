@@ -2277,7 +2277,7 @@ tr.row-status-submitted td:first-child {
   background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   overflow: hidden;
 }
 
@@ -2289,21 +2289,52 @@ tr.row-status-submitted td:first-child {
   border-color: #1976d2;
 }
 
-.budget-panel-header {
+.budget-header-toggle {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 16px;
   background: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-  flex-wrap: wrap;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
 }
 
-.budget-panel-header h3 {
+.budget-header-toggle:hover {
+  background: #f0f0f0;
+}
+
+.budget-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.budget-chevron {
+  color: #666;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.budget-chevron-open {
+  transform: rotate(90deg);
+}
+
+.budget-header-toggle h3 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: #1a1a1a;
+}
+
+.budget-controls-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .budget-fy-label {
@@ -2331,9 +2362,7 @@ tr.row-status-submitted td:first-child {
   cursor: pointer;
 }
 
-.budget-refresh-btn,
-.budget-collapse-btn,
-.budget-expand-btn {
+.budget-refresh-btn {
   background: none;
   border: 1px solid #d0d0d0;
   border-radius: 4px;
@@ -2344,9 +2373,7 @@ tr.row-status-submitted td:first-child {
   color: #666;
 }
 
-.budget-refresh-btn:hover,
-.budget-collapse-btn:hover,
-.budget-expand-btn:hover {
+.budget-refresh-btn:hover {
   background: #e3f2fd;
   border-color: #1976d2;
   color: #1976d2;
@@ -2377,8 +2404,8 @@ tr.row-status-submitted td:first-child {
 /* Summary cards */
 .budget-summary-row {
   display: flex;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 16px;
+  padding: 16px 18px;
   border-bottom: 1px solid #eee;
 }
 
@@ -2392,7 +2419,7 @@ tr.row-status-submitted td:first-child {
   color: #888;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .budget-summary-value {
@@ -2408,8 +2435,8 @@ tr.row-status-submitted td:first-child {
 /* Region chips */
 .budget-region-row {
   display: flex;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 10px;
+  padding: 10px 18px;
   border-bottom: 1px solid #eee;
   flex-wrap: wrap;
 }
@@ -2564,7 +2591,7 @@ tr.row-status-submitted td:first-child {
 }
 
 .budget-td-category {
-  padding: 8px 12px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2627,7 +2654,7 @@ tr.row-status-submitted td:first-child {
 }
 
 .budget-footer {
-  padding: 8px 16px;
+  padding: 10px 18px;
   font-size: 11px;
   color: #999;
   background: #fafafa;
@@ -2648,13 +2675,17 @@ tr.row-status-submitted td:first-child {
     min-width: 45%;
   }
 
+  .budget-controls-bar {
+    flex-wrap: wrap;
+  }
+
   .budget-controls {
     width: 100%;
     margin-left: 0;
     justify-content: flex-end;
   }
 
-  .budget-panel-header {
+  .budget-header-toggle {
     flex-wrap: wrap;
     gap: 6px;
   }
@@ -2667,8 +2698,8 @@ tr.row-status-submitted td:first-child {
 .mix-panel {
   background: #fff;
   border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  border-radius: 10px;
+  margin-bottom: 24px;
   overflow: hidden;
 }
 
@@ -2677,7 +2708,7 @@ tr.row-status-submitted td:first-child {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 12px 16px;
+  padding: 14px 16px;
   background: #fafafa;
   border: none;
   cursor: pointer;
@@ -2706,9 +2737,9 @@ tr.row-status-submitted td:first-child {
 }
 
 .mix-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: #333;
+  color: #1a1a1a;
   margin: 0;
 }
 
@@ -2746,7 +2777,7 @@ tr.row-status-submitted td:first-child {
 }
 
 .mix-body {
-  padding: 16px;
+  padding: 18px;
   border-top: 1px solid #e0e0e0;
 }
 
@@ -2852,14 +2883,14 @@ tr.row-status-submitted td:first-child {
 .mix-regions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .mix-region-card {
   background: #fafafa;
   border: 1px solid #eee;
-  border-radius: 6px;
-  padding: 12px;
+  border-radius: 8px;
+  padding: 14px;
 }
 
 .mix-region-header {

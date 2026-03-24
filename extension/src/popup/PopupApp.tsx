@@ -683,96 +683,125 @@ export const PopupApp: React.FC = () => {
                 <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>Nothing to do right now</div>
               </div>
             ) : (
-              <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
-                {/* Table header */}
-                <div style={{
-                  display: 'grid', gridTemplateColumns: '1fr 100px 70px 36px',
-                  gap: '4px', padding: '6px 10px',
-                  fontSize: '9px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' as const,
-                  letterSpacing: '0.05em', borderBottom: '1px solid #e5e7eb',
-                }}>
-                  <span>Client / Vendor</span>
-                  <span>Type</span>
-                  <span style={{ textAlign: 'right' }}>Amount</span>
-                  <span></span>
-                </div>
-
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {submissions.filter(s => !s.entered_in_system).map(sub => {
-                  const assistanceType = sub.form_data?.assistance_type || '—';
+                  const assistanceType = sub.form_data?.assistance_type || sub.service_type || '—';
+                  const programCategory = sub.form_data?.program_category || sub.program_category || null;
+                  const region = sub.form_data?.region || sub.region || null;
                   const tfaDateStr = sub.tfa_date || sub.captured_at_utc;
                   const tfaDateFmt = (() => {
                     const d = new Date(tfaDateStr);
-                    return isNaN(d.getTime()) ? '—' : `${d.getMonth() + 1}/${d.getDate()}`;
+                    return isNaN(d.getTime()) ? '—' : `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
                   })();
                   return (
                     <div
                       key={sub.id}
                       style={{
-                        display: 'grid', gridTemplateColumns: '1fr 100px 70px 36px',
-                        gap: '4px', alignItems: 'center',
-                        padding: '8px 10px',
-                        borderBottom: '1px solid #f3f4f6',
-                        transition: 'background 0.15s',
+                        background: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        transition: 'box-shadow 0.15s, border-color 0.15s',
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = '#c7d2fe';
+                        e.currentTarget.style.boxShadow = '0 1px 4px rgba(99,102,241,0.10)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
                     >
-                      {/* Client / Vendor + Date */}
-                      <div style={{ overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '1 1 0' }}>
-                            {sub.client_name || sub.client_id || 'Unknown'}
-                          </span>
-                          <span style={{ fontSize: '10px', fontWeight: 600, color: '#6366f1', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            {tfaDateFmt}
-                          </span>
+                      {/* Row 1: Client name + check-off */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#1f2937', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {sub.client_name || 'Unknown Client'}
+                          </div>
+                          {sub.client_id && (
+                            <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '1px' }}>
+                              ID: {sub.client_id}
+                            </div>
+                          )}
                         </div>
-                        <div style={{ fontSize: '10px', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {sub.vendor || 'No vendor'}
-                        </div>
-                      </div>
-                      {/* Type */}
-                      <div style={{
-                        fontSize: '9px', fontWeight: 600, padding: '2px 6px',
-                        borderRadius: '10px', backgroundColor: '#eef2ff', color: '#4338ca',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        textAlign: 'center',
-                      }}>
-                        {assistanceType}
-                      </div>
-                      {/* Amount */}
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669', textAlign: 'right' }}>
-                        {sub.service_amount != null ? `$${sub.service_amount.toFixed(2)}` : '—'}
-                      </div>
-                      {/* Check off */}
-                      <div style={{ textAlign: 'center' }}>
                         <button
                           onClick={(e) => handleToggleEntered(sub, e)}
                           disabled={togglingEnteredId === sub.id}
                           title="Mark as entered in ServicePoint"
                           style={{
-                            width: '22px', height: '22px',
-                            borderRadius: '4px',
+                            width: '24px', height: '24px',
+                            borderRadius: '6px',
                             border: '2px solid #d1d5db',
                             background: 'white',
                             cursor: togglingEnteredId === sub.id ? 'wait' : 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '12px', color: '#d1d5db',
+                            fontSize: '13px', color: '#d1d5db',
                             transition: 'all 0.15s',
                             opacity: togglingEnteredId === sub.id ? 0.5 : 1,
-                            padding: 0,
+                            padding: 0, flexShrink: 0, marginLeft: '8px',
                           }}
                           onMouseEnter={e => {
                             e.currentTarget.style.borderColor = '#10b981';
                             e.currentTarget.style.color = '#10b981';
+                            e.currentTarget.style.background = '#ecfdf5';
                             e.currentTarget.textContent = '✓';
                           }}
                           onMouseLeave={e => {
                             e.currentTarget.style.borderColor = '#d1d5db';
                             e.currentTarget.style.color = '#d1d5db';
+                            e.currentTarget.style.background = 'white';
                             e.currentTarget.textContent = '';
                           }}
                         />
+                      </div>
+
+                      {/* Row 2: Vendor */}
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {sub.vendor || 'No vendor'}
+                      </div>
+
+                      {/* Row 3: Chips — amount, type, date, region, program */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                        {/* Amount */}
+                        <span style={{
+                          fontSize: '11px', fontWeight: 700, color: '#059669',
+                          background: '#ecfdf5', borderRadius: '6px', padding: '2px 8px',
+                        }}>
+                          {sub.service_amount != null ? `$${sub.service_amount.toFixed(2)}` : '—'}
+                        </span>
+                        {/* Assistance type */}
+                        <span style={{
+                          fontSize: '10px', fontWeight: 600, color: '#4338ca',
+                          background: '#eef2ff', borderRadius: '6px', padding: '2px 8px',
+                          maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {assistanceType}
+                        </span>
+                        {/* Date */}
+                        <span style={{
+                          fontSize: '10px', fontWeight: 600, color: '#6366f1',
+                          background: '#f5f3ff', borderRadius: '6px', padding: '2px 8px',
+                        }}>
+                          {tfaDateFmt}
+                        </span>
+                        {/* Region */}
+                        {region && (
+                          <span style={{
+                            fontSize: '10px', fontWeight: 500, color: '#b45309',
+                            background: '#fffbeb', borderRadius: '6px', padding: '2px 8px',
+                          }}>
+                            {region}
+                          </span>
+                        )}
+                        {/* Program */}
+                        {programCategory && (
+                          <span style={{
+                            fontSize: '10px', fontWeight: 500, color: '#0f766e',
+                            background: '#f0fdfa', borderRadius: '6px', padding: '2px 8px',
+                          }}>
+                            {programCategory}
+                          </span>
+                        )}
                       </div>
                     </div>
                   );

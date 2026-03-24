@@ -24,6 +24,14 @@ export interface ReceiptAnalysisResult {
   region?: string | null;
   vendorAddress?: string | null;
   description?: string | null;
+  clientMatch?: {
+    clientId: string;
+    clientName: string;
+    program?: string;
+    region?: string;
+    confidence: number;
+    matchType: string;
+  } | null;
   confidence: {
     vendorName?: number;
     amount?: number;
