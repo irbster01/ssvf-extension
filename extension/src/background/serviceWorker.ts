@@ -97,6 +97,53 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+// Open popup as a persistent window instead of default popup (which closes on focus loss)
+const POPUP_WIDTH = 420;
+const POPUP_HEIGHT = 600;
+let popupWindowId: number | null = null;
+
+chrome.action.onClicked.addListener(async () => {
+  // If the window already exists, focus it
+  if (popupWindowId !== null) {
+    try {
+      const existing = await chrome.windows.get(popupWindowId);
+      if (existing) {
+        chrome.windows.update(popupWindowId, { focused: true });
+        return;
+      }
+    } catch {
+      popupWindowId = null;
+    }
+  }
+  // Position near top-right, under the extensions toolbar area
+  let top = 0;
+  let left = 0;
+  try {
+    const lastFocused = await chrome.windows.getLastFocused();
+    const winLeft = lastFocused.left ?? 0;
+    const winWidth = lastFocused.width ?? 1920;
+    left = winLeft + winWidth - POPUP_WIDTH - 12;
+    top = (lastFocused.top ?? 0) + 80; // below the toolbar
+  } catch { /* fallback to 0,0 */ }
+
+  const win = await chrome.windows.create({
+    url: chrome.runtime.getURL('src/popup/index.html'),
+    type: 'popup',
+    width: POPUP_WIDTH,
+    height: POPUP_HEIGHT,
+    top,
+    left,
+  });
+  popupWindowId = win.id ?? null;
+});
+
+// Clear tracked window ID when the popup window is closed
+chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId === popupWindowId) {
+    popupWindowId = null;
+  }
+});
+
 // Listen for messages from popup to trigger a refresh
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'REFRESH_UNREAD') {

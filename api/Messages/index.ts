@@ -85,7 +85,7 @@ async function PostMessage(
     return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
-  const senderEmail = auth.email;
+  const senderEmail = (auth.email || '').toLowerCase();
   const senderName = auth.userName || senderEmail;
 
   const rateLimitCheck = await checkRateLimitDistributed(auth.userId);

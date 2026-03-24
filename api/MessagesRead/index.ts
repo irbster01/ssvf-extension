@@ -60,10 +60,11 @@ async function MarkMessageRead(
       return { status: 404, jsonBody: { error: 'Message not found' }, headers: corsHeaders };
     }
 
-    // Add current user to readBy if not already present
-    const readBy = existing.readBy || [];
-    if (!readBy.includes(auth.email!)) {
-      readBy.push(auth.email!);
+    // Add current user to readBy if not already present (case-insensitive)
+    const userEmailLower = auth.email!.toLowerCase();
+    const readBy = (existing.readBy || []).map((e: string) => e.toLowerCase());
+    if (!readBy.includes(userEmailLower)) {
+      readBy.push(userEmailLower);
       const updated = { ...existing, readBy };
       await container.item(msgId, body.submissionId).replace(updated);
     }
@@ -119,9 +120,10 @@ async function MarkThreadRead(
 
   try {
     const container = await getMessagesContainer();
-    const userEmail = auth.email!;
+    const userEmail = auth.email!.toLowerCase();
 
     // Find all messages in the thread not yet read by this user
+    // Check both exact and case-insensitive match
     const { resources: unreadMessages } = await container.items.query<Message>({
       query: 'SELECT * FROM c WHERE c.submissionId = @submissionId AND NOT ARRAY_CONTAINS(c.readBy, @email)',
       parameters: [
@@ -130,10 +132,11 @@ async function MarkThreadRead(
       ],
     }).fetchAll();
 
-    // Update each to add user to readBy
+    // Update each to add user to readBy (normalized lowercase)
     let markedCount = 0;
     for (const msg of unreadMessages) {
-      const readBy = [...(msg.readBy || []), userEmail];
+      // Normalize existing readBy entries to lowercase and add current user
+      const readBy = [...new Set([...(msg.readBy || []).map((e: string) => e.toLowerCase()), userEmail])];
       await container.item(msg.id, body.submissionId).replace({ ...msg, readBy });
       markedCount++;
     }

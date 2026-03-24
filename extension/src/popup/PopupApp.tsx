@@ -247,7 +247,30 @@ export const PopupApp: React.FC = () => {
           });
           if (ucResp.ok) {
             const ucData = await ucResp.json();
-            setUnreadCounts(ucData.perSubmission || {});
+            const perSub: Record<string, number> = ucData.perSubmission || {};
+            setUnreadCounts(perSub);
+
+            // Fetch any submissions with unread messages that aren't already loaded
+            const loadedIds = new Set(list.map((s: Submission) => s.id));
+            const missingIds = Object.keys(perSub).filter(id => !loadedIds.has(id));
+            if (missingIds.length > 0) {
+              console.log(`[Messages] Fetching ${missingIds.length} missing submissions with unread messages`);
+              const fetched: Submission[] = [];
+              for (const id of missingIds) {
+                try {
+                  const subResp = await fetch(`${API_URL.replace('/captures', `/submissions/${id}`)}`, {
+                    headers: { 'Authorization': `Bearer ${ucToken}` },
+                  });
+                  if (subResp.ok) {
+                    const subData = await subResp.json();
+                    if (subData) fetched.push(subData);
+                  }
+                } catch { /* skip */ }
+              }
+              if (fetched.length > 0) {
+                setSubmissions(prev => [...prev, ...fetched]);
+              }
+            }
           }
         }
       } catch { /* non-critical */ }
@@ -258,6 +281,9 @@ export const PopupApp: React.FC = () => {
       setLoadingSubmissions(false);
     }
   };
+
+  /** Track which submissions have been read but thread is still open */
+  const [readButOpen, setReadButOpen] = useState<Set<string>>(new Set());
 
   /** Fetch messages for a submission thread */
   const fetchThreadMessages = async (submissionId: string) => {
@@ -271,13 +297,13 @@ export const PopupApp: React.FC = () => {
       if (resp.ok) {
         const msgs = await resp.json();
         setThreadMessages(msgs);
-        // Mark thread as read
+        // Mark thread as read on server, but keep it visible until collapsed
         await fetch(`${API_URL.replace('/captures', '/messages/read-thread')}`, {
           method: 'PATCH',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ submissionId }),
         });
-        setUnreadCounts(prev => { const next = { ...prev }; delete next[submissionId]; return next; });
+        setReadButOpen(prev => new Set(prev).add(submissionId));
         // Tell background to refresh badge
         chrome.runtime.sendMessage({ type: 'REFRESH_UNREAD' }).catch(() => {});
       }
@@ -545,7 +571,7 @@ export const PopupApp: React.FC = () => {
                 </button>
               </div>
               {(() => {
-                const unreadSubs = submissions.filter(s => (unreadCounts[s.id] || 0) > 0);
+                const unreadSubs = submissions.filter(s => (unreadCounts[s.id] || 0) > 0 || readButOpen.has(s.id));
                 if (loadingSubmissions && submissions.length === 0) {
                   return <div style={{ textAlign: 'center', padding: '16px', color: '#9ca3af', fontSize: '12px' }}>Loading...</div>;
                 }
@@ -574,6 +600,9 @@ export const PopupApp: React.FC = () => {
                               if (isExpanded) {
                                 setExpandedMessagesSub(null);
                                 setThreadMessages([]);
+                                // Now remove from visible list since user is done
+                                setReadButOpen(prev => { const next = new Set(prev); next.delete(sub.id); return next; });
+                                setUnreadCounts(prev => { const next = { ...prev }; delete next[sub.id]; return next; });
                               } else {
                                 setExpandedMessagesSub(sub.id);
                                 fetchThreadMessages(sub.id);

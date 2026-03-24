@@ -107,52 +107,66 @@ export async function GetSubmissions(
   }
 }
 
-export async function UpdateSubmission(
+export async function SubmissionById(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
-  context.log('=== UpdateSubmission: Processing request ===');
-
   const origin = request.headers.get('origin') || '';
   const corsHeaders = getCorsHeaders(origin);
 
-  // Handle preflight OPTIONS request
   if (request.method === 'OPTIONS') {
     return { status: 204, headers: corsHeaders };
   }
 
-  // Validate authentication
   const auth = await validateAuth(request, context);
   if (!auth.valid) {
-    return {
-      status: 401,
-      jsonBody: { error: 'Unauthorized' },
-      headers: corsHeaders,
-    };
+    return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
   }
 
-  // Rate limiting
   const rateLimitCheck = await checkRateLimitDistributed(auth.userId!);
   if (!rateLimitCheck.allowed) {
-    return {
-      status: 429,
-      jsonBody: { error: 'Too many requests' },
-      headers: { ...corsHeaders, 'Retry-After': '60' },
-    };
+    return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
   }
 
+  const id = request.params.id;
+  if (!id) {
+    return { status: 400, jsonBody: { error: 'Missing submission ID' }, headers: corsHeaders };
+  }
+
+  // ── GET: fetch single submission ──
+  if (request.method === 'GET') {
+    try {
+      const cont = await getContainer();
+      const { resources } = await cont.items.query<ServiceCapture>({
+        query: 'SELECT * FROM c WHERE c.id = @id',
+        parameters: [{ name: '@id', value: id }],
+      }).fetchAll();
+
+      if (resources.length === 0) {
+        return { status: 404, jsonBody: { error: 'Submission not found' }, headers: corsHeaders };
+      }
+
+      const submission = resources[0];
+
+      // Non-elevated users can only see their own submissions
+      if (!isElevated(auth.role)) {
+        const userEmail = (auth.email || auth.userId || '').toLowerCase();
+        if ((submission.user_id || '').toLowerCase() !== userEmail) {
+          return { status: 403, jsonBody: { error: 'Forbidden' }, headers: corsHeaders };
+        }
+      }
+
+      return { status: 200, jsonBody: submission, headers: corsHeaders };
+    } catch (error: any) {
+      context.error('Error fetching submission by ID:', error);
+      return { status: 500, jsonBody: { error: 'Internal server error' }, headers: corsHeaders };
+    }
+  }
+
+  // ── PATCH: update submission ──
   context.log(`✅ UpdateSubmission Authenticated: ${auth.email || auth.userId} (role=${auth.role})`);
 
-  const id = request.params.id;
-
   try {
-    if (!id) {
-      return {
-        status: 400,
-        jsonBody: { error: 'Missing submission ID' },
-        headers: corsHeaders,
-      };
-    }
 
     const body = await request.json() as Partial<ServiceCapture> & { service_type: string };
     
@@ -285,9 +299,9 @@ app.http('GetSubmissions', {
   handler: GetSubmissions,
 });
 
-app.http('UpdateSubmission', {
-  methods: ['PATCH', 'OPTIONS'],
+app.http('SubmissionById', {
+  methods: ['GET', 'PATCH', 'OPTIONS'],
   route: 'submissions/{id}',
   authLevel: 'anonymous',
-  handler: UpdateSubmission,
+  handler: SubmissionById,
 });

@@ -52,7 +52,20 @@ export async function validateEntraIdToken(token: string): Promise<{ valid: bool
     // Get user info from claims
     const userId = payload.oid || payload.sub;
     const userName = payload.name;
-    const email = payload.preferred_username || payload.upn || payload.unique_name || payload.email;
+    let email = payload.preferred_username || payload.upn || payload.unique_name || payload.email;
+
+    // Normalize email: lowercase and map .onmicrosoft.com aliases to primary domain
+    if (email) {
+      email = email.toLowerCase();
+      const onMicrosoftMatch = email.match(/^(.+)@(.+)\.onmicrosoft\.com$/);
+      if (onMicrosoftMatch) {
+        // Try upn or other claims for the real domain; otherwise keep as-is
+        const altEmail = (payload.upn || payload.unique_name || payload.email || '').toLowerCase();
+        if (altEmail && !altEmail.endsWith('.onmicrosoft.com')) {
+          email = altEmail;
+        }
+      }
+    }
     
     if (!userId) {
       console.warn('[EntraID] No user ID in token');
