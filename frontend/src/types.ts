@@ -66,4 +66,10 @@ export interface Message {
 export interface UnreadCountResponse {
   totalUnread: number;
   perSubmission: Record<string, number>;
+  submissionInfo?: Record<string, {
+    client_name?: string;
+    status?: string;
+    service_amount?: number;
+    service_type?: string;
+  }>;
 }

@@ -85,11 +85,38 @@ async function UnreadCount(
       perSubmission[r.submissionId] = r.unreadCount;
     }
 
+    // Step 4: Fetch basic submission info for submissions with unread messages
+    // This ensures the frontend can display them even if they aren't in the current page
+    const unreadSubIds = Object.keys(perSubmission);
+    const submissionInfo: Record<string, { client_name?: string; status?: string; service_amount?: number; service_type?: string }> = {};
+    if (unreadSubIds.length > 0) {
+      try {
+        const subContainer = await getContainer();
+        const { resources: subs } = await subContainer.items.query<{
+          id: string; client_name?: string; status?: string; service_amount?: number; service_type?: string;
+        }>({
+          query: 'SELECT c.id, c.client_name, c.status, c.service_amount, c.service_type FROM c WHERE ARRAY_CONTAINS(@ids, c.id)',
+          parameters: [{ name: '@ids', value: unreadSubIds }],
+        }).fetchAll();
+        for (const s of subs) {
+          submissionInfo[s.id] = {
+            client_name: s.client_name,
+            status: s.status,
+            service_amount: s.service_amount,
+            service_type: s.service_type,
+          };
+        }
+      } catch (err) {
+        context.warn('Could not fetch submission info for unread threads:', err);
+      }
+    }
+
     return {
       status: 200,
       jsonBody: {
         totalUnread,
         perSubmission,
+        submissionInfo,
       },
       headers: corsHeaders,
     };

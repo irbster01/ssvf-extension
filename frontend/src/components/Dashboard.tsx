@@ -3,7 +3,7 @@ import { useMsal } from '@azure/msal-react';
 import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import { Capacitor } from '@capacitor/core';
 import { Submission, SubmissionStatus, UserRole, isElevatedRole } from '../types';
-import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor, fetchUnreadCount, sendMessage, fetchClients, addClient, ClientRecord } from '../api/submissions';
+import { fetchSubmissions, updateSubmission, uploadAttachment, getAttachmentDownloadUrl, createNetSuitePO, fetchNetSuiteVendors, NetSuiteVendor, fetchUnreadCount, sendMessage, fetchClients, addClient, ClientRecord, markAllRead } from '../api/submissions';
 import { nativeAuth } from '../auth/nativeAuth';
 import { useSignalR } from '../hooks/useSignalR';
 import EditModal from './EditModal';
@@ -54,6 +54,8 @@ function Dashboard() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [unreadSubInfo, setUnreadSubInfo] = useState<Record<string, { client_name?: string; status?: string; service_amount?: number; service_type?: string }>>({});
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -234,6 +236,7 @@ function Dashboard() {
         const token = await getToken();
         const data = await fetchUnreadCount(token);
         setUnreadCounts(data.perSubmission || {});
+        setUnreadSubInfo(data.submissionInfo || {});
       } catch {
         // Non-critical
         console.warn('Could not load unread counts');
@@ -260,6 +263,21 @@ function Dashboard() {
       [submissionId]: (prev[submissionId] || 0) + delta,
     }));
   }, []);
+
+  const handleMarkAllRead = useCallback(async () => {
+    setMarkingAllRead(true);
+    try {
+      const token = await getToken();
+      await markAllRead(token);
+      setUnreadCounts({});
+      setUnreadSubInfo({});
+      addToast('success', 'All messages marked as read');
+    } catch {
+      addToast('error', 'Failed to mark messages as read');
+    } finally {
+      setMarkingAllRead(false);
+    }
+  }, [getToken, addToast]);
 
   const handleSignalRNewMessage = useCallback(() => {
     addToast('info', 'New message received');
@@ -595,7 +613,10 @@ function Dashboard() {
       <MessagesPanel
         submissions={submissions}
         unreadCounts={unreadCounts}
+        submissionInfo={unreadSubInfo}
         onOpenThread={(sub) => setMessageSubmission(sub)}
+        onMarkAllRead={handleMarkAllRead}
+        markingAllRead={markingAllRead}
       />
 
       {isElevatedRole(userRole) && <BudgetPanel getToken={getToken} />}

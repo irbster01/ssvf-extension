@@ -409,6 +409,24 @@ export async function fetchUnreadCount(token: string): Promise<UnreadCountRespon
   return response.json();
 }
 
+export async function markAllRead(
+  token: string
+): Promise<{ success: boolean; markedCount: number }> {
+  const response = await fetch(`${API_BASE}/messages/read-all`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to mark all read: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function negotiateSignalR(token: string): Promise<{
   url: string | null;
   accessToken: string | null;

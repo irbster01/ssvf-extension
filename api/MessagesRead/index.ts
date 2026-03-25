@@ -1,5 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { getMessagesContainer } from '../shared/cosmosClient';
+import { getMessagesContainer, getContainer } from '../shared/cosmosClient';
 import { checkRateLimitDistributed } from '../shared/rateLimiter';
 import { Message } from '../shared/types';
 import { validateAuthWithRole } from '../shared/rbac';
@@ -166,4 +166,96 @@ app.http('MarkThreadRead', {
   route: 'messages/read-thread',
   authLevel: 'anonymous',
   handler: MarkThreadRead,
+});
+
+/**
+ * PATCH /api/messages/read-all
+ * Mark ALL unread messages as read for the current user across all threads.
+ */
+async function MarkAllRead(
+  request: HttpRequest,
+  context: InvocationContext
+): Promise<HttpResponseInit> {
+  const origin = request.headers.get('origin') || '';
+  const corsHeaders = getCorsHeaders(origin);
+
+  if (request.method === 'OPTIONS') {
+    return { status: 204, headers: corsHeaders };
+  }
+
+  const auth = await validateAuthWithRole(request, context);
+  if (!auth.valid || !auth.email) {
+    return { status: 401, jsonBody: { error: 'Unauthorized' }, headers: corsHeaders };
+  }
+
+  const rateLimitCheck = await checkRateLimitDistributed(auth.userId);
+  if (!rateLimitCheck.allowed) {
+    return { status: 429, jsonBody: { error: 'Too many requests' }, headers: { ...corsHeaders, 'Retry-After': '60' } };
+  }
+
+  try {
+    const msgContainer = await getMessagesContainer();
+    const userEmail = auth.email!.toLowerCase();
+
+    // Find submission IDs the user owns
+    const subContainer = await getContainer();
+    const { resources: ownedSubs } = await subContainer.items.query<{ id: string }>({
+      query: 'SELECT c.id FROM c WHERE LOWER(c.user_id) = @email',
+      parameters: [{ name: '@email', value: userEmail }],
+    }).fetchAll();
+    const threadIds = new Set(ownedSubs.map(s => s.id));
+
+    // Also include threads where user has sent messages
+    const { resources: participantSubs } = await msgContainer.items.query<{ submissionId: string }>({
+      query: 'SELECT DISTINCT VALUE { "submissionId": c.submissionId } FROM c WHERE LOWER(c.sentBy) = @email',
+      parameters: [{ name: '@email', value: userEmail }],
+    }).fetchAll();
+    for (const p of participantSubs) threadIds.add(p.submissionId);
+
+    if (threadIds.size === 0) {
+      return { status: 200, jsonBody: { success: true, markedCount: 0 }, headers: corsHeaders };
+    }
+
+    const idArray = Array.from(threadIds);
+
+    // Find all unread messages across all user's threads
+    const { resources: unreadMessages } = await msgContainer.items.query<Message>({
+      query: `
+        SELECT * FROM c
+        WHERE LOWER(c.sentBy) != @email
+          AND NOT ARRAY_CONTAINS(c.readBy, @email)
+          AND ARRAY_CONTAINS(@threadIds, c.submissionId)
+      `,
+      parameters: [
+        { name: '@email', value: userEmail },
+        { name: '@threadIds', value: idArray },
+      ],
+    }).fetchAll();
+
+    // Mark each as read
+    let markedCount = 0;
+    for (const msg of unreadMessages) {
+      const readBy = [...new Set([...(msg.readBy || []).map((e: string) => e.toLowerCase()), userEmail])];
+      await msgContainer.item(msg.id, msg.submissionId).replace({ ...msg, readBy });
+      markedCount++;
+    }
+
+    context.log(`[Messages] Marked ${markedCount} messages as read (all threads) for ${userEmail}`);
+
+    return {
+      status: 200,
+      jsonBody: { success: true, markedCount },
+      headers: corsHeaders,
+    };
+  } catch (error: any) {
+    context.error('Error marking all messages read:', error);
+    return { status: 500, jsonBody: { error: 'Internal server error' }, headers: corsHeaders };
+  }
+}
+
+app.http('MarkAllRead', {
+  methods: ['PATCH', 'OPTIONS'],
+  route: 'messages/read-all',
+  authLevel: 'anonymous',
+  handler: MarkAllRead,
 });
