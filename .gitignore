@@ -22,6 +22,9 @@ AuthKey_*.p8
 *.pem
 *_base64.txt
 
+# Seed/data CSV files (PII)
+*.csv
+
 # Temporary NetSuite exploration/test scripts
 api/inspect-po.js
 api/list-netsuite-data.js
