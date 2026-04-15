@@ -15,7 +15,7 @@ import AnalyticsModal from './AnalyticsModal';
 import TimelineModal from './TimelineModal';
 import SubmissionRow from './SubmissionRow';
 import SubmissionCard from './SubmissionCard';
-import BudgetPanel from './BudgetPanel';
+// import BudgetPanel from './BudgetPanel'; // hidden for now
 import ProgramMixPanel from './ProgramMixPanel';
 import MessagesPanel from './MessagesPanel';
 
@@ -619,7 +619,8 @@ function Dashboard() {
         markingAllRead={markingAllRead}
       />
 
-      {isElevatedRole(userRole) && <BudgetPanel getToken={getToken} />}
+      {/* Budget tracker hidden for now */}
+      {/* {isElevatedRole(userRole) && <BudgetPanel getToken={getToken} />} */}
 
       {isElevatedRole(userRole) && <ProgramMixPanel submissions={submissions} />}
 

@@ -18,7 +18,7 @@ interface MessagesPanelProps {
 }
 
 function MessagesPanel({ submissions, unreadCounts, submissionInfo, onOpenThread, onMarkAllRead, markingAllRead }: MessagesPanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 

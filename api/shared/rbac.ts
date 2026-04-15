@@ -17,8 +17,11 @@ import { validateEntraIdToken, isJwtToken } from './entraIdAuth';
 // Entra Object ID for "SharePoint - Accounting" group
 const ACCOUNTING_GROUP_ID = process.env.ACCOUNTING_GROUP_ID || '5b130c87-5b6c-4d20-b053-5c5f2ebe0cf0';
 
-// Hard-coded admin override
-const ADMIN_EMAIL = 'russell.irby@voanorthla.org';
+// Hard-coded admin overrides
+const ADMIN_EMAILS: string[] = [
+  'russell.irby@voanorthla.org',
+  'nora.greer@voanorthla.org',
+];
 
 export type UserRole = 'admin' | 'accounting' | 'user';
 
@@ -35,7 +38,7 @@ export interface AuthenticatedUser {
  */
 export function resolveRole(email: string | undefined, groups: string[] | undefined): UserRole {
   // 1. Admin override by email
-  if (email && email.toLowerCase() === ADMIN_EMAIL) {
+  if (email && ADMIN_EMAILS.includes(email.toLowerCase())) {
     return 'admin';
   }
 
