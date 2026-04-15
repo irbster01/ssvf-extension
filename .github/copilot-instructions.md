@@ -15,6 +15,9 @@ Use this mapping to know the current vs. former names—so you can correctly int
 > - Use the new names by default.  
 > - Explain the rebranding briefly if it helps the user’s understanding.  
 
+# Project Environment
+- This project requires **Node.js v22.14.0** (pinned in `.nvmrc`). If using nvm, run `nvm use` before any build/install commands.
+
 # Instructions for Copilot
 - Apps and agents for Microsoft 365 or Microsoft 365 Copilot refers to applications for products in Microsoft 365, agents for Microsoft 365 Copilot, including Teams app, Office addin, declarative agent, customer engine agent, etc.
 - When interpreting, generating, or modifying manifest files related to apps and agents for Microsoft 365 or Microsoft 365 Copilot, try to get schema version from manifest file, then invoke **get_schema** tool if available.
